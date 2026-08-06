@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import { searchAll, generateInsights, periodAverage, bestHabitStreaks, dayProgress } from '../lib/analytics'
-import { isPeriodicDue, areaMeta } from '../lib/areas'
+import { isPeriodicDue, areaMeta, isTeamEventImportantOn, formatTeamEventHeadline } from '../lib/areas'
 import { todayKey } from '../lib/seed'
 import { exportJson, importJsonFile } from '../lib/sync'
 import type { HomeWidget, PageId } from '../types'
@@ -235,26 +235,18 @@ export function RemindersPage() {
   )
 
   const today = todayKey()
-  ;(data.periodicHabits || [])
-    .filter((h) => isPeriodicDue(h.rule) && !h.completions[today])
-    .forEach((h) =>
-      items.push({
-        time: '09:00',
-        label: h.title,
-        source: `${areaMeta(h.areaId).emoji} Периодическая`,
-      }),
-    )
   ;(data.businessEvents || [])
     .filter((e) => isPeriodicDue(e.rule) && !e.completions[today])
     .forEach((e) => items.push({ time: '10:00', label: e.title, source: '💼 Бизнес' }))
   ;(data.teamEvents || []).forEach((e) => {
-    if (today >= e.startDate && today <= e.endDate) {
-      items.push({
-        time: '08:30',
-        label: e.coverHint || `Замена: ${e.personName}`,
-        source: '💼 Команда',
-      })
-    }
+    if (e.recurrence?.type === 'daily') return
+    const status = isTeamEventImportantOn(e, today)
+    if (!status.important) return
+    items.push({
+      time: '08:30',
+      label: formatTeamEventHeadline(e, status),
+      source: `${areaMeta(e.areaId || 'business').emoji} Календарь`,
+    })
   })
 
   items.sort((a, b) => a.time.localeCompare(b.time))
@@ -286,7 +278,7 @@ const allWidgets: { id: HomeWidget; label: string }[] = [
   { id: 'thought', label: 'Мысль дня' },
   { id: 'progress', label: 'Прогресс дня' },
   { id: 'areas', label: 'Панель развития жизни' },
-  { id: 'todayDue', label: 'Сегодня по сферам' },
+  { id: 'todayDue', label: 'Напоминания' },
   { id: 'morning', label: 'Утро' },
   { id: 'habits', label: 'Привычки' },
   { id: 'evening', label: 'Вечер' },

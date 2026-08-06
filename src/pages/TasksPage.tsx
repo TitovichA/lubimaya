@@ -14,7 +14,7 @@ import { GripVertical, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import { parseISO } from 'date-fns'
 import { useAppStore } from '../lib/store'
 import { HABIT_COLORS } from '../lib/seed'
-import { LIFE_AREAS, isPeriodicDue, areaMeta } from '../lib/areas'
+import { LIFE_AREAS, isPeriodicDue, areaMeta, isTeamEventOnDate } from '../lib/areas'
 import { Page, Card, Check, Button, Modal, Input, TextArea, Empty } from '../components/ui'
 import type { LifeAreaId, Priority, RepeatRule, Task } from '../types'
 
@@ -108,7 +108,6 @@ export function TasksPage() {
   const deleteTask = useAppStore((s) => s.deleteTask)
   const toggleTask = useAppStore((s) => s.toggleTask)
   const reorderTasks = useAppStore((s) => s.reorderTasks)
-  const togglePeriodicHabit = useAppStore((s) => s.togglePeriodicHabit)
   const toggleBusinessEvent = useAppStore((s) => s.toggleBusinessEvent)
   const toggleAreaHabit = useAppStore((s) => s.toggleAreaHabit)
   const selectedDate = useAppStore((s) => s.nav.selectedDate)
@@ -119,10 +118,9 @@ export function TasksPage() {
     .filter((t) => filter === 'all' || t.areaId === filter)
     .sort((a, b) => a.order - b.order)
 
-  const duePeriodic = (data.periodicHabits || []).filter(
-    (h) =>
-      isPeriodicDue(h.rule, parseISO(selectedDate)) &&
-      (filter === 'all' || h.areaId === filter),
+  const dueTeamEvents = (data.teamEvents || []).filter(
+    (e) =>
+      isTeamEventOnDate(e, selectedDate) && (filter === 'all' || (e.areaId || 'business') === filter),
   )
   const dueBusiness =
     filter === 'all' || filter === 'business'
@@ -176,7 +174,7 @@ export function TasksPage() {
     setAreaId('')
   }
 
-  const hasSphereItems = duePeriodic.length > 0 || dueBusiness.length > 0 || areaHabitsToday.length > 0
+  const hasSphereItems = dueTeamEvents.length > 0 || dueBusiness.length > 0 || areaHabitsToday.length > 0
 
   return (
     <Page
@@ -225,17 +223,18 @@ export function TasksPage() {
               <span className="text-sm">💼 {e.title}</span>
             </div>
           ))}
-          {duePeriodic.map((h) => {
-            const meta = areaMeta(h.areaId)
+          {dueTeamEvents.map((e) => {
+            const meta = areaMeta(e.areaId || 'business')
             return (
-              <div key={h.id} className="flex items-center gap-3 px-4 py-3">
-                <Check
-                  checked={!!h.completions[selectedDate]}
-                  onChange={() => togglePeriodicHabit(h.id, selectedDate)}
-                  color={meta.color}
-                />
+              <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+                <span
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs"
+                  style={{ background: `${meta.color}44` }}
+                >
+                  {meta.emoji}
+                </span>
                 <span className="text-sm">
-                  {meta.emoji} {h.title}
+                  {meta.emoji} {e.personName}
                 </span>
               </div>
             )

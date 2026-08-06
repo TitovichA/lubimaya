@@ -1,10 +1,21 @@
-import { format, getDate, getDay, getMonth, parseISO, differenceInCalendarDays } from 'date-fns'
+import {
+  format,
+  getDate,
+  getDay,
+  getMonth,
+  parseISO,
+  differenceInCalendarDays,
+  isWithinInterval,
+  addDays,
+} from 'date-fns'
+import { ru } from 'date-fns/locale'
 import type {
   AppData,
   LifeAreaId,
   PeriodicHabit,
   PeriodicRule,
   CycleSettings,
+  TeamEvent,
 } from '../types'
 import { todayKey } from './seed'
 
@@ -151,6 +162,78 @@ export function describePeriodic(rule: PeriodicRule): string {
   }
 }
 
+export type PeriodicRuleOpts = {
+  weekday?: number
+  n?: number
+  day?: number
+  month?: number
+  count?: number
+  anchorDate?: string
+  anchorMonth?: number
+}
+
+/** Собрать правило периодичности из вида + параметров формы */
+export function buildPeriodicRule(kind: string, opts: PeriodicRuleOpts = {}): PeriodicRule {
+  const weekday = opts.weekday ?? 1
+  const n = Math.max(1, opts.n ?? 1)
+  const day = Math.min(31, Math.max(1, opts.day ?? 1))
+  const month = Math.min(12, Math.max(1, opts.month ?? 1))
+  const count = Math.max(1, opts.count ?? 2)
+  const anchorDate = opts.anchorDate || todayKey()
+  const anchorMonth = opts.anchorMonth ?? 1
+
+  switch (kind) {
+    case 'daily':
+      return { type: 'daily' }
+    case 'weekly':
+      return { type: 'weekly', weekday }
+    case 'biweekly':
+      return { type: 'biweekly', weekday, anchorDate }
+    case 'everyNDays':
+      return { type: 'everyNDays', n, anchorDate }
+    case 'monthly':
+      return { type: 'monthly', day }
+    case 'monthlyLastDay':
+      return { type: 'monthlyLastDay' }
+    case 'nthWeekday':
+      return { type: 'nthWeekday', n: Math.min(5, n), weekday }
+    case 'everyNMonths':
+      return { type: 'everyNMonths', n, day, anchorMonth }
+    case 'yearly':
+      return { type: 'yearly', month, day }
+    case 'timesPerMonth':
+      return { type: 'timesPerMonth', count }
+    default:
+      return { type: 'monthly', day }
+  }
+}
+
+/** Событие приходится на дату (разовый интервал или повтор) */
+export function isTeamEventOnDate(event: TeamEvent, date = todayKey()): boolean {
+  try {
+    if (event.recurrence) {
+      if (date < event.startDate) return false
+      if (event.endDate && date > event.endDate) return false
+      return isPeriodicDue(event.recurrence, parseISO(date))
+    }
+    const d = parseISO(date)
+    return isWithinInterval(d, { start: parseISO(event.startDate), end: parseISO(event.endDate) })
+  } catch {
+    return false
+  }
+}
+
+/** Ближайшая дата вхождения события с fromDate включительно */
+export function nextTeamEventOccurrence(event: TeamEvent, fromDate = todayKey()): string | null {
+  if (!event.recurrence) return event.startDate >= fromDate ? event.startDate : null
+  const from = parseISO(fromDate)
+  for (let i = 0; i < 400; i++) {
+    const key = format(addDays(from, i), 'yyyy-MM-dd')
+    if (isTeamEventOnDate(event, key)) return key
+  }
+  return null
+}
+
 export function getCycleDay(settings: CycleSettings | undefined, date = todayKey()): number | null {
   if (!settings?.enabled || !settings.lastStartDate) return null
   const start = parseISO(settings.lastStartDate)
@@ -187,17 +270,10 @@ export function areaScore(data: AppData, areaId: LifeAreaId, date = todayKey()):
       plans.length
     : null
 
-  const periodic = (data.periodicHabits || []).filter((h) => h.areaId === areaId)
-  const due = periodic
-    .filter((h) => isPeriodicDue(h.rule, parseISO(date)))
-    .filter((h) => !(period && h.softOnCycle && !h.completions[date]))
-  const dueDone = due.filter((h) => h.completions[date]).length
-  const periodicRate = due.length ? dueDone / due.length : null
-
   const tasks = data.tasks.filter((t) => t.areaId === areaId && t.date === date)
   const taskRate = tasks.length ? tasks.filter((t) => t.done).length / tasks.length : null
 
-  const parts = [dailyRate, planRate, periodicRate, taskRate].filter((v): v is number => v !== null)
+  const parts = [dailyRate, planRate, taskRate].filter((v): v is number => v !== null)
   if (!parts.length) return 55
   return Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 100)
 }
@@ -211,4 +287,61 @@ export function allAreaScores(data: AppData, date = todayKey()) {
 
 export function formatDateKey(d: Date) {
   return format(d, 'yyyy-MM-dd')
+}
+
+/** Событие важно сегодня: уже идёт / сегодня / начнётся в ближайшие 3 дня (в т.ч. ближайший повтор) */
+export function isTeamEventImportantOn(
+  event: TeamEvent | { startDate: string; endDate: string; recurrence?: PeriodicRule },
+  date = todayKey(),
+): { important: boolean; daysUntilStart: number; active: boolean } {
+  try {
+    if (event.recurrence) {
+      const next = nextTeamEventOccurrence(event as TeamEvent, date)
+      if (!next) return { important: false, daysUntilStart: 0, active: false }
+      const daysUntilStart = differenceInCalendarDays(parseISO(next), parseISO(date))
+      const active = daysUntilStart === 0
+      return {
+        important: active || (daysUntilStart >= 1 && daysUntilStart <= 3),
+        daysUntilStart,
+        active,
+      }
+    }
+    const today = parseISO(date)
+    const start = parseISO(event.startDate)
+    const end = parseISO(event.endDate)
+    const daysUntilStart = differenceInCalendarDays(start, today)
+    const active = isWithinInterval(today, { start, end })
+    const upcomingSoon = daysUntilStart >= 1 && daysUntilStart <= 3
+    return {
+      important: active || upcomingSoon || daysUntilStart === 0,
+      daysUntilStart,
+      active: active || daysUntilStart === 0,
+    }
+  } catch {
+    return { important: false, daysUntilStart: 0, active: false }
+  }
+}
+
+export function teamEventWhenLabel(daysUntilStart: number, active: boolean): string {
+  if (active || daysUntilStart <= 0) return 'Сегодня'
+  if (daysUntilStart === 1) return 'Завтра'
+  if (daysUntilStart === 2) return 'Послезавтра'
+  return `Через ${daysUntilStart} дня`
+}
+
+/** Заголовок события = имя/название + когда */
+export function formatTeamEventHeadline(
+  event: TeamEvent | { personName: string; startDate: string; endDate?: string; recurrence?: PeriodicRule },
+  status: { daysUntilStart: number; active: boolean },
+): string {
+  const name = event.personName.trim()
+  const next =
+    'recurrence' in event && event.recurrence
+      ? nextTeamEventOccurrence(event as TeamEvent) || event.startDate
+      : event.startDate
+  const startRu = format(parseISO(next), 'd MMMM', { locale: ru })
+  if (status.active || status.daysUntilStart <= 0) return name
+  if (status.daysUntilStart === 1) return `${name} — завтра`
+  if (status.daysUntilStart === 2) return `${name} — послезавтра`
+  return `${name} — с ${startRu}`
 }

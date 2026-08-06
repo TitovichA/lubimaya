@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '../lib/store'
 import { dayProgress } from '../lib/analytics'
 import { todayKey } from '../lib/seed'
-import { isPeriodicDue, isPeriodDay } from '../lib/areas'
+import { isPeriodicDue, isPeriodDay, isTeamEventOnDate } from '../lib/areas'
 import { Page, Card, Button } from '../components/ui'
 
 export function CalendarPage() {
@@ -70,7 +70,7 @@ export function CalendarPage() {
             const isToday = key === todayKey()
             const selected = key === selectedDate && !isToday
             const hasDue =
-              (data.periodicHabits || []).some((h) => isPeriodicDue(h.rule, d)) ||
+              (data.teamEvents || []).some((e) => isTeamEventOnDate(e, key)) ||
               (data.businessEvents || []).some((e) => isPeriodicDue(e.rule, d))
             const period = isPeriodDay(data.settings.cycle, key)
             return (

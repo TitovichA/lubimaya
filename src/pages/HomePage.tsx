@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useAppStore } from '../lib/store'
-import { greeting, formatRuDate, formatRuWeekday, todayKey } from '../lib/seed'
+import { formatRuDate, formatRuWeekday, todayKey } from '../lib/seed'
 import {
   dayProgress,
   getRitualDone,
@@ -10,11 +11,22 @@ import {
   periodAverage,
   generateInsights,
 } from '../lib/analytics'
-import { Card, ProgressRing, LinearProgress, SectionLabel, Check } from '../components/ui'
+import {
+  challengeDayNumber,
+  challengeOverallProgress,
+  challengeRemaining,
+  formatChallengeEndRu,
+  isChallengeComplete,
+  remainingLabel,
+  defaultChallenge,
+} from '../lib/challenge'
+import { Card, ProgressRing, LinearProgress, SectionLabel, Modal, Input, Button } from '../components/ui'
 import { AppIcon } from '../components/AppIcon'
+import { AreaIllustration } from '../components/AreaIllustrations'
+import { ChallengeBadge } from '../components/ChallengeBadge'
+import { RemindersHomeBlock } from '../components/RemindersHomeBlock'
 import { ThoughtOfDayCard } from './ThoughtsPage'
-import { allAreaScores, duePeriodicToday, LIFE_AREAS, isPeriodicDue } from '../lib/areas'
-import { parseISO, isWithinInterval } from 'date-fns'
+import { allAreaScores, LIFE_AREAS } from '../lib/areas'
 
 const fade = {
   initial: { opacity: 0, y: 12 },
@@ -24,7 +36,13 @@ const fade = {
 export function HomePage() {
   const data = useAppStore((s) => s.data)
   const setPage = useAppStore((s) => s.setPage)
+  const updateChallenge = useAppStore((s) => s.updateChallenge)
+  const challenge = data.settings.challenge || defaultChallenge()
   const progress = dayProgress(data)
+  const challengeProgress = challengeOverallProgress(data)
+  const dayNum = challengeDayNumber(challenge)
+  const remaining = challengeRemaining(challenge)
+  const complete = isChallengeComplete(challenge)
   const morningDone = getRitualDone(data, 'morning').length
   const eveningDone = getRitualDone(data, 'evening').length
   const habitsDone = data.habits.filter((h) => habitDoneToday(h)).length
@@ -32,24 +50,6 @@ export function HomePage() {
   const week = periodAverage(data, 7)
   const insights = generateInsights(data)
   const scores = allAreaScores(data)
-  const duePeriodic = duePeriodicToday(data)
-  const dueBusiness = (data.businessEvents || []).filter(
-    (e) => isPeriodicDue(e.rule, parseISO(todayKey())) && !e.completions[todayKey()],
-  )
-  const covers = (data.teamEvents || []).filter((e) => {
-    try {
-      return isWithinInterval(parseISO(todayKey()), {
-        start: parseISO(e.startDate),
-        end: parseISO(e.endDate),
-      })
-    } catch {
-      return false
-    }
-  })
-  const togglePeriodicHabit = useAppStore((s) => s.togglePeriodicHabit)
-  const toggleBusinessEvent = useAppStore((s) => s.toggleBusinessEvent)
-  const toggleAreaHabit = useAppStore((s) => s.toggleAreaHabit)
-  const areaHabitsToday = (data.areaHabits || []).filter((h) => !h.completions[todayKey()])
   const hidden = new Set(
     data.settings.hiddenWidgets.map((w) => (w === 'quote' ? 'thought' : w)),
   )
@@ -57,19 +57,68 @@ export function HomePage() {
     ...new Set(data.settings.homeWidgets.map((w) => (w === 'quote' ? 'thought' : w))),
   ].filter((w) => !hidden.has(w))
 
+  const [challengeOpen, setChallengeOpen] = useState(false)
+  const [congratsOpen, setCongratsOpen] = useState(false)
+  const [draftTitle, setDraftTitle] = useState(challenge.title)
+  const [draftStart, setDraftStart] = useState(challenge.startDate)
+  const [draftDuration, setDraftDuration] = useState(String(challenge.durationDays))
+
+  useEffect(() => {
+    if (complete) setCongratsOpen(true)
+  }, [complete, challenge.startDate, challenge.durationDays])
+
+  const openChallenge = () => {
+    setDraftTitle(challenge.title)
+    setDraftStart(challenge.startDate)
+    setDraftDuration(String(challenge.durationDays))
+    setChallengeOpen(true)
+  }
+
+  const saveChallenge = () => {
+    updateChallenge({
+      title: draftTitle.trim() || 'Моя 100-дневка',
+      startDate: draftStart || todayKey(),
+      durationDays: Math.max(1, Number(draftDuration) || 100),
+    })
+    setChallengeOpen(false)
+    setCongratsOpen(false)
+  }
+
+  const startNewChallenge = () => {
+    updateChallenge({
+      title: 'Новая 100-дневка',
+      startDate: todayKey(),
+      durationDays: 100,
+    })
+    setCongratsOpen(false)
+    openChallenge()
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 pb-28 pt-8 md:max-w-5xl md:px-8 md:pb-12 lg:max-w-6xl">
       {widgets.includes('greeting') && (
         <motion.header {...fade} transition={{ delay: 0.05 }} className="mb-8">
-          <p className="font-display text-3xl tracking-tight text-ink md:text-4xl">Моя 100-дневка</p>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-muted md:text-base">
-            Каждый день делает меня ближе к моей лучшей версии.
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-3xl tracking-tight text-ink md:text-4xl">Моя 100-дневка</p>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-muted md:text-base">
+                Каждый день делает меня ближе к моей лучшей версии.
+              </p>
+              <p className="mt-5 text-xs uppercase tracking-[0.2em] text-ink-muted">{formatRuWeekday()}</p>
+              <p className="mt-2 text-ink-muted">{formatRuDate()}</p>
+            </div>
+
+            <ChallengeBadge
+              dayLabel={`${Math.max(1, Math.min(dayNum, challenge.durationDays))}-й`}
+              complete={complete}
+              progress={Math.min(100, (Math.max(1, dayNum) / challenge.durationDays) * 100)}
+              onClick={openChallenge}
+            />
+          </div>
+          <p className="mt-3 text-right text-[11px] text-ink-muted">
+            {complete ? '100-дневка завершена' : remainingLabel(remaining)}
           </p>
-          <p className="mt-5 text-xs uppercase tracking-[0.2em] text-ink-muted">{formatRuWeekday()}</p>
-          <h1 className="mt-2 font-display text-3xl font-medium tracking-tight text-ink-soft md:text-4xl">
-            {greeting(data.settings.name)}
-          </h1>
-          <p className="mt-2 text-ink-muted">{formatRuDate()}</p>
+          <p className="text-right text-[10px] text-ink-muted/80">{challenge.title}</p>
         </motion.header>
       )}
 
@@ -80,16 +129,43 @@ export function HomePage() {
       )}
 
       {widgets.includes('progress') && (
-        <motion.div {...fade} transition={{ delay: 0.15 }} className="mb-8">
-          <Card className="flex items-center gap-6 p-6" hover={false}>
-            <ProgressRing value={progress} label={`${progress}%`} sublabel="сегодня" />
+        <motion.div {...fade} transition={{ delay: 0.15 }} className="mb-8 grid gap-4 md:grid-cols-2">
+          <Card className="flex items-center gap-5 p-6" hover={false}>
+            <ProgressRing
+              value={progress}
+              size={112}
+              stroke={7}
+              color="#A8C5D4"
+              label={`${progress}%`}
+              sublabel="день"
+            />
             <div className="min-w-0 flex-1">
               <p className="text-[11px] uppercase tracking-[0.18em] text-ink-muted">Сегодня выполнено</p>
               <p className="mt-2 font-display text-3xl text-ink">{progress}%</p>
-              <div className="mt-4">
-                <LinearProgress value={progress} />
-              </div>
-              <p className="mt-3 text-sm text-ink-muted">Неделя в среднем — {week}%</p>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+                Ритуалы, привычки, задачи и дела дня
+              </p>
+              <p className="mt-3 text-xs text-ink-muted">Неделя в среднем — {week}%</p>
+            </div>
+          </Card>
+          <Card className="flex items-center gap-5 p-6" hover={false} onClick={openChallenge}>
+            <ProgressRing
+              value={challengeProgress}
+              size={112}
+              stroke={7}
+              color="#C4A574"
+              label={`${challengeProgress}%`}
+              sublabel="путь"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-ink-muted">
+                Выполнено за {challenge.durationDays}-дневку
+              </p>
+              <p className="mt-2 font-display text-3xl text-ink">{challengeProgress}%</p>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+                Цели, привычки, планы сфер и дни пути
+              </p>
+              <p className="mt-3 text-xs text-gold-deep">до {formatChallengeEndRu(challenge)}</p>
             </div>
           </Card>
         </motion.div>
@@ -98,16 +174,18 @@ export function HomePage() {
       {widgets.includes('areas') && (
         <section className="mb-8">
           <SectionLabel>Панель развития жизни</SectionLabel>
-          <div className="grid gap-3 sm:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {scores.map((s) => (
-              <Card key={s.id} className="p-4 text-center" onClick={() => setPage(s.pageId)}>
-                <div className="text-xl">{s.emoji}</div>
-                <p className="mt-2 text-xs text-ink-muted">{s.label}</p>
-                <p className="mt-1 font-display text-2xl" style={{ color: s.color }}>
-                  {s.value}%
-                </p>
-                <div className="mt-2">
-                  <LinearProgress value={s.value} color={s.color} />
+              <Card key={s.id} className="group overflow-hidden p-0" onClick={() => setPage(s.pageId)}>
+                <AreaIllustration areaId={s.id} className="aspect-[4/3] w-full" />
+                <div className="p-4">
+                  <p className="text-sm font-medium text-ink">{s.label}</p>
+                  <p className="mt-1 font-display text-2xl" style={{ color: s.color }}>
+                    {s.value}%
+                  </p>
+                  <div className="mt-2">
+                    <LinearProgress value={s.value} color={s.color} />
+                  </div>
                 </div>
               </Card>
             ))}
@@ -115,46 +193,7 @@ export function HomePage() {
         </section>
       )}
 
-      {widgets.includes('todayDue') && (duePeriodic.length > 0 || dueBusiness.length > 0 || covers.length > 0 || areaHabitsToday.length > 0) && (
-        <section className="mb-8">
-          <SectionLabel>Сегодня по сферам</SectionLabel>
-          <Card className="divide-y divide-sand/50 overflow-hidden" hover={false}>
-            {covers.map((e) => (
-              <div key={e.id} className="px-5 py-3 text-sm text-ink-soft">
-                💼 {e.coverHint || `Замена: ${e.personName}`}
-              </div>
-            ))}
-            {dueBusiness.map((e) => (
-              <div key={e.id} className="flex items-center gap-3 px-5 py-3">
-                <Check checked={false} onChange={() => toggleBusinessEvent(e.id)} color="#C4A574" />
-                <span className="text-sm">💼 {e.title}</span>
-              </div>
-            ))}
-            {duePeriodic.map((h) => {
-              const meta = LIFE_AREAS.find((a) => a.id === h.areaId)!
-              return (
-                <div key={h.id} className="flex items-center gap-3 px-5 py-3">
-                  <Check checked={false} onChange={() => togglePeriodicHabit(h.id)} color={meta.color} />
-                  <span className="text-sm">
-                    {meta.emoji} {h.title}
-                  </span>
-                </div>
-              )
-            })}
-            {areaHabitsToday.slice(0, 6).map((h) => {
-              const meta = LIFE_AREAS.find((a) => a.id === h.areaId)!
-              return (
-                <div key={h.id} className="flex items-center gap-3 px-5 py-3">
-                  <Check checked={false} onChange={() => toggleAreaHabit(h.id)} color={meta.color} />
-                  <span className="text-sm">
-                    {meta.emoji} {h.title}
-                  </span>
-                </div>
-              )
-            })}
-          </Card>
-        </section>
-      )}
+      {widgets.includes('todayDue') && <RemindersHomeBlock />}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
         {widgets.includes('morning') && (
@@ -292,7 +331,7 @@ export function HomePage() {
             <div className="grid grid-cols-5 gap-2">
               {scores.map((s) => (
                 <div key={s.id} className="text-center">
-                  <div className="text-lg">{s.emoji}</div>
+                  <p className="text-xs text-ink-muted">{s.label}</p>
                   <p className="mt-1 font-display text-lg" style={{ color: s.color }}>
                     {s.value}%
                   </p>
@@ -314,6 +353,54 @@ export function HomePage() {
           </Card>
         </section>
       )}
+
+      <Modal open={challengeOpen} onClose={() => setChallengeOpen(false)} title="Текущая 100-дневка">
+        <div className="space-y-4">
+          <Input
+            label="Название"
+            value={draftTitle}
+            onChange={(e) => setDraftTitle(e.target.value)}
+            placeholder="Осень 2026"
+          />
+          <Input
+            label="Дата начала"
+            type="date"
+            value={draftStart}
+            onChange={(e) => setDraftStart(e.target.value)}
+          />
+          <Input
+            label="Продолжительность (дней)"
+            type="number"
+            value={draftDuration}
+            onChange={(e) => setDraftDuration(e.target.value)}
+          />
+          <p className="text-sm text-ink-muted">
+            Сегодня — {Math.max(1, dayNum)}-й день · окончание{' '}
+            {formatChallengeEndRu({
+              ...challenge,
+              title: draftTitle,
+              startDate: draftStart || challenge.startDate,
+              durationDays: Math.max(1, Number(draftDuration) || 100),
+            })}
+          </p>
+          <Button onClick={saveChallenge}>Сохранить</Button>
+        </div>
+      </Modal>
+
+      <Modal open={congratsOpen && complete} onClose={() => setCongratsOpen(false)} title="Поздравляем!">
+        <div className="space-y-4">
+          <p className="font-display text-2xl text-ink">Вы завершили свою 100-дневку</p>
+          <p className="text-sm leading-relaxed text-ink-soft">
+            Каждый маленький шаг сложился в большой результат. Создать новую?
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={startNewChallenge}>Создать новую</Button>
+            <Button variant="ghost" onClick={() => setCongratsOpen(false)}>
+              Позже
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

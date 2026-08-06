@@ -69,12 +69,6 @@ export function dayProgress(data: AppData, date = todayKey()) {
   const areaHabitsDone = areaHabits.filter((h) => h.completions[date]).length
   const areaHabitsTotal = areaHabits.length
 
-  const duePeriodic = (data.periodicHabits || [])
-    .filter((h) => isPeriodicDue(h.rule, parseISO(date)))
-    .filter((h) => !(period && h.softOnCycle && !h.completions[date]))
-  const periodicDone = duePeriodic.filter((h) => h.completions[date]).length
-  const periodicTotal = duePeriodic.length
-
   const dueBiz = (data.businessEvents || []).filter((e) => isPeriodicDue(e.rule, parseISO(date)))
   const bizDone = dueBiz.filter((e) => e.completions[date]).length
   const bizTotal = dueBiz.length
@@ -85,7 +79,6 @@ export function dayProgress(data: AppData, date = todayKey()) {
     habitsTotal ? habitsDone / habitsTotal : null,
     tasksTotal ? tasksDone / tasksTotal : null,
     areaHabitsTotal ? areaHabitsDone / areaHabitsTotal : null,
-    periodicTotal ? periodicDone / periodicTotal : null,
     bizTotal ? bizDone / bizTotal : null,
   ].filter((v): v is number => v !== null)
 

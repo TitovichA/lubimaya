@@ -232,10 +232,15 @@ export type CycleSettings = {
 
 export type TeamEvent = {
   id: string
+  areaId: LifeAreaId
   personName: string
   type: 'vacation' | 'trip' | 'shift' | 'cover' | 'other'
+  /** Для разового: начало периода. Для повтора: якорная дата (с которой действует правило) */
   startDate: string
+  /** Для разового: конец периода. Для повтора обычно далёкая дата */
   endDate: string
+  /** Если задано — событие повторяется по правилу (вместо одного интервала) */
+  recurrence?: PeriodicRule
   note?: string
   coverHint?: string
 }
@@ -265,6 +270,12 @@ export type HomeWidget =
 
 export type LifeBalance = Record<LifeSphere, number>
 
+export type ChallengeSettings = {
+  title: string
+  startDate: string
+  durationDays: number
+}
+
 export type UserSettings = {
   name: string
   greetingStyle: 'warm' | 'formal' | 'minimal'
@@ -279,6 +290,7 @@ export type UserSettings = {
   thoughtByDate: Record<string, string>
   thoughtCycleShown: string[]
   cycle: CycleSettings
+  challenge: ChallengeSettings
 }
 
 export type AppData = {

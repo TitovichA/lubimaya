@@ -7,6 +7,12 @@ import {
   isPeriodDay,
   getCycleDay,
   isPeriodicDue,
+  isTeamEventImportantOn,
+  isTeamEventOnDate,
+  teamEventWhenLabel,
+  formatTeamEventHeadline,
+  buildPeriodicRule,
+  nextTeamEventOccurrence,
 } from '../lib/areas'
 import { todayKey } from '../lib/seed'
 import {
@@ -19,34 +25,39 @@ import {
   Input,
   Empty,
 } from '../components/ui'
-import type { LifeAreaId, PeriodicRule } from '../types'
-import { parseISO, format, eachDayOfInterval, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
+import type { LifeAreaId, PeriodicRule, TeamEvent } from '../types'
+import { parseISO, format, eachDayOfInterval, startOfMonth, endOfMonth, getDate, getMonth } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
-function parseRule(kind: string): PeriodicRule {
-  switch (kind) {
-    case 'daily':
-      return { type: 'daily' }
-    case 'weekly':
-      return { type: 'weekly', weekday: 1 }
-    case 'biweekly':
-      return { type: 'biweekly', weekday: 0, anchorDate: todayKey() }
-    case 'everyNDays':
-      return { type: 'everyNDays', n: 14, anchorDate: todayKey() }
-    case 'monthly':
-      return { type: 'monthly', day: 15 }
-    case 'monthlyLastDay':
-      return { type: 'monthlyLastDay' }
-    case 'nthWeekday':
-      return { type: 'nthWeekday', n: 1, weekday: 0 }
-    case 'everyNMonths':
-      return { type: 'everyNMonths', n: 3, day: 1 }
-    case 'yearly':
-      return { type: 'yearly', month: 10, day: 1 }
-    case 'timesPerMonth':
-      return { type: 'timesPerMonth', count: 2 }
-    default:
-      return { type: 'monthly', day: 1 }
+const FAR_END = '9999-12-31'
+const WEEKDAYS = [
+  { v: 1, label: 'пн' },
+  { v: 2, label: 'вт' },
+  { v: 3, label: 'ср' },
+  { v: 4, label: 'чт' },
+  { v: 5, label: 'пт' },
+  { v: 6, label: 'сб' },
+  { v: 0, label: 'вс' },
+]
+
+function ruleToForm(rule?: PeriodicRule) {
+  if (!rule) {
+    return {
+      kind: 'monthly',
+      weekday: 1,
+      n: 14,
+      day: getDate(new Date()),
+      month: 1,
+      count: 2,
+    }
+  }
+  return {
+    kind: rule.type,
+    weekday: 'weekday' in rule ? rule.weekday : 1,
+    n: 'n' in rule ? rule.n : 14,
+    day: 'day' in rule ? rule.day : getDate(new Date()),
+    month: 'month' in rule ? rule.month : 1,
+    count: 'count' in rule ? rule.count : 2,
   }
 }
 
@@ -67,13 +78,11 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
   const updateAreaHabit = useAppStore((s) => s.updateAreaHabit)
   const deleteAreaHabit = useAppStore((s) => s.deleteAreaHabit)
   const reorderAreaRules = useAppStore((s) => s.reorderAreaRules)
-  const addPeriodicHabit = useAppStore((s) => s.addPeriodicHabit)
-  const togglePeriodicHabit = useAppStore((s) => s.togglePeriodicHabit)
-  const deletePeriodicHabit = useAppStore((s) => s.deletePeriodicHabit)
   const addBusinessEvent = useAppStore((s) => s.addBusinessEvent)
   const toggleBusinessEvent = useAppStore((s) => s.toggleBusinessEvent)
   const deleteBusinessEvent = useAppStore((s) => s.deleteBusinessEvent)
   const addTeamEvent = useAppStore((s) => s.addTeamEvent)
+  const updateTeamEvent = useAppStore((s) => s.updateTeamEvent)
   const deleteTeamEvent = useAppStore((s) => s.deleteTeamEvent)
   const updateCycle = useAppStore((s) => s.updateCycle)
 
@@ -84,8 +93,6 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
   const habits = (data.areaHabits || [])
     .filter((h) => h.areaId === areaId)
     .sort((a, b) => a.order - b.order)
-  const periodics = (data.periodicHabits || []).filter((h) => h.areaId === areaId)
-  const duePeriodics = periodics.filter((h) => isPeriodicDue(h.rule, parseISO(today)))
 
   const cycle = data.settings.cycle
   const period = areaId === 'body' && isPeriodDay(cycle, today)
@@ -97,13 +104,18 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
   const [planTitle, setPlanTitle] = useState('')
   const [planTarget, setPlanTarget] = useState(100)
   const [planUnit, setPlanUnit] = useState('%')
-  const [periodicOpen, setPeriodicOpen] = useState(false)
-  const [periodicTitle, setPeriodicTitle] = useState('')
-  const [periodicKind, setPeriodicKind] = useState('monthly')
   const [teamOpen, setTeamOpen] = useState(false)
+  const [editTeamId, setEditTeamId] = useState<string | null>(null)
   const [person, setPerson] = useState('')
+  const [teamMode, setTeamMode] = useState<'once' | 'repeat'>('once')
   const [teamStart, setTeamStart] = useState(today)
   const [teamEnd, setTeamEnd] = useState(today)
+  const [recKind, setRecKind] = useState('monthly')
+  const [recWeekday, setRecWeekday] = useState(1)
+  const [recN, setRecN] = useState(14)
+  const [recDay, setRecDay] = useState(getDate(new Date()))
+  const [recMonth, setRecMonth] = useState(1)
+  const [recCount, setRecCount] = useState(2)
   const [bizOpen, setBizOpen] = useState(false)
   const [bizTitle, setBizTitle] = useState('')
   const [bizKind, setBizKind] = useState('monthly')
@@ -114,16 +126,93 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
     return eachDayOfInterval({ start, end })
   }, [today])
 
-  const activeCovers = (data.teamEvents || []).filter((e) => {
-    try {
-      return isWithinInterval(parseISO(today), {
-        start: parseISO(e.startDate),
-        end: parseISO(e.endDate),
-      })
-    } catch {
-      return false
+  const areaEvents = (data.teamEvents || []).filter((e) => (e.areaId || 'business') === areaId)
+  const importantTeam = areaEvents
+    .map((e) => ({ e, meta: isTeamEventImportantOn(e, today) }))
+    .filter((x) => x.meta.important)
+    .sort((a, b) => a.meta.daysUntilStart - b.meta.daysUntilStart)
+
+  function openNewTeam() {
+    setEditTeamId(null)
+    setPerson('')
+    setTeamMode('once')
+    setTeamStart(today)
+    setTeamEnd(today)
+    setRecKind('monthly')
+    setRecWeekday(1)
+    setRecN(14)
+    setRecDay(getDate(new Date()))
+    setRecMonth(1)
+    setRecCount(2)
+    setTeamOpen(true)
+  }
+
+  function openEditTeam(e: TeamEvent) {
+    setEditTeamId(e.id)
+    setPerson(e.personName)
+    if (e.recurrence) {
+      setTeamMode('repeat')
+      const f = ruleToForm(e.recurrence)
+      setRecKind(f.kind)
+      setRecWeekday(f.weekday)
+      setRecN(f.n)
+      setRecDay(f.day)
+      setRecMonth(f.month)
+      setRecCount(f.count)
+      setTeamStart(e.startDate)
+      setTeamEnd(e.endDate === FAR_END ? today : e.endDate)
+    } else {
+      setTeamMode('once')
+      setTeamStart(e.startDate)
+      setTeamEnd(e.endDate)
     }
-  })
+    setTeamOpen(true)
+  }
+
+  function saveTeamEvent() {
+    if (!person.trim()) return
+    if (teamMode === 'repeat') {
+      const recurrence = buildPeriodicRule(recKind, {
+        weekday: recWeekday,
+        n: recN,
+        day: recDay,
+        month: recMonth,
+        count: recCount,
+        anchorDate: teamStart,
+        anchorMonth: getMonth(parseISO(teamStart)) + 1,
+      })
+      const payload = {
+        areaId,
+        personName: person.trim(),
+        type: 'other' as const,
+        startDate: teamStart,
+        endDate: FAR_END,
+        recurrence,
+        note: undefined,
+        coverHint: undefined,
+      }
+      if (editTeamId) updateTeamEvent(editTeamId, payload)
+      else addTeamEvent(payload)
+    } else {
+      const start = teamStart
+      const end = teamEnd < teamStart ? teamStart : teamEnd
+      const payload = {
+        areaId,
+        personName: person.trim(),
+        type: 'other' as const,
+        startDate: start,
+        endDate: end,
+        recurrence: undefined,
+        note: undefined,
+        coverHint: undefined,
+      }
+      if (editTeamId) updateTeamEvent(editTeamId, { ...payload, recurrence: undefined })
+      else addTeamEvent(payload)
+    }
+    setTeamOpen(false)
+    setEditTeamId(null)
+    setPerson('')
+  }
 
   return (
     <Page title={`${meta.emoji} ${meta.title}`} subtitle={meta.subtitle} back={() => setPage('home')}>
@@ -144,13 +233,34 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
         </Card>
       )}
 
-      {areaId === 'business' && activeCovers.length > 0 && (
-        <Card className="mb-6 p-5" hover={false}>
-          {activeCovers.map((e) => (
-            <p key={e.id} className="text-sm text-ink-soft">
-              {e.coverHint || `Сегодня вы заменяете ${e.personName}.`}
-            </p>
-          ))}
+      {importantTeam.length > 0 && (
+        <Card className="mb-5 p-5" hover={false}>
+          <h2 className="mb-3 font-display text-2xl text-ink">Важно</h2>
+          <p className="mb-4 text-xs text-ink-muted">
+            Из календаря событий: сегодня и за 3 дня до начала
+          </p>
+          <div className="space-y-2">
+            {importantTeam.map(({ e, meta }) => (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => openEditTeam(e)}
+                className="w-full rounded-2xl border border-sand/70 bg-cream/80 px-4 py-3 text-left transition hover:bg-cream"
+              >
+                <p className="text-[10px] uppercase tracking-[0.14em] text-ink-muted">
+                  {teamEventWhenLabel(meta.daysUntilStart, meta.active)}
+                  {e.recurrence ? ` · ${describePeriodic(e.recurrence)}` : ''}
+                </p>
+                <p className="mt-1 text-sm text-ink">{formatTeamEventHeadline(e, meta)}</p>
+                {!e.recurrence && (
+                  <p className="mt-1 text-xs text-ink-muted">
+                    {format(parseISO(e.startDate), 'd MMM', { locale: ru })} —{' '}
+                    {format(parseISO(e.endDate), 'd MMM', { locale: ru })}
+                  </p>
+                )}
+              </button>
+            ))}
+          </div>
         </Card>
       )}
 
@@ -303,46 +413,6 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
         )}
       </Card>
 
-      <Card className="mb-5 p-5" hover={false}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-2xl text-ink">Периодические привычки</h2>
-          <Button variant="soft" onClick={() => setPeriodicOpen(true)}>
-            <Plus size={16} />
-          </Button>
-        </div>
-        {duePeriodics.length > 0 && (
-          <div className="mb-4 rounded-2xl bg-sky/40 px-4 py-3 text-sm text-ink-soft">
-            Сегодня: {duePeriodics.map((h) => h.title).join(' · ')}
-          </div>
-        )}
-        <div className="space-y-3">
-          {periodics.map((h) => {
-            const due = isPeriodicDue(h.rule, parseISO(today))
-            return (
-              <div key={h.id} className="flex items-start gap-3 rounded-2xl border border-sand/60 px-3 py-3">
-                {due ? (
-                  <Check
-                    checked={!!h.completions[today]}
-                    onChange={() => togglePeriodicHabit(h.id)}
-                    color={meta.color}
-                  />
-                ) : (
-                  <span className="mt-1 h-6 w-6" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-ink">{h.title}</p>
-                  <p className="text-xs text-ink-muted">{describePeriodic(h.rule)}</p>
-                </div>
-                <button className="text-xs text-ink-muted" onClick={() => deletePeriodicHabit(h.id)}>
-                  ×
-                </button>
-              </div>
-            )
-          })}
-          {!periodics.length && <Empty title="Добавьте периодическую привычку" />}
-        </div>
-      </Card>
-
       {areaId === 'body' && (
         <Card className="mb-5 p-5" hover={false}>
           <h2 className="mb-3 font-display text-2xl text-ink">Женский цикл</h2>
@@ -384,83 +454,104 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
       )}
 
       {areaId === 'business' && (
-        <>
-          <Card className="mb-5 p-5" hover={false}>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-2xl text-ink">Ежемесячные события</h2>
-              <Button variant="soft" onClick={() => setBizOpen(true)}>
-                <Plus size={16} />
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {(data.businessEvents || []).map((e) => {
-                const due = isPeriodicDue(e.rule, parseISO(today))
-                return (
-                  <div key={e.id} className="flex items-center gap-3 rounded-2xl bg-cream/70 px-3 py-3 text-sm">
-                    {due && (
-                      <Check
-                        checked={!!e.completions[today]}
-                        onChange={() => toggleBusinessEvent(e.id)}
-                        color={meta.color}
-                      />
-                    )}
-                    <div className="flex-1">
-                      <p>{e.title}</p>
-                      <p className="text-xs text-ink-muted">{describePeriodic(e.rule)}</p>
-                    </div>
-                    <button className="text-xs text-ink-muted" onClick={() => deleteBusinessEvent(e.id)}>
-                      ×
-                    </button>
+        <Card className="mb-5 p-5" hover={false}>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-display text-2xl text-ink">Ежемесячные события</h2>
+            <Button variant="soft" onClick={() => setBizOpen(true)}>
+              <Plus size={16} />
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {(data.businessEvents || []).map((e) => {
+              const due = isPeriodicDue(e.rule, parseISO(today))
+              return (
+                <div key={e.id} className="flex items-center gap-3 rounded-2xl bg-cream/70 px-3 py-3 text-sm">
+                  {due && (
+                    <Check
+                      checked={!!e.completions[today]}
+                      onChange={() => toggleBusinessEvent(e.id)}
+                      color={meta.color}
+                    />
+                  )}
+                  <div className="flex-1">
+                    <p>{e.title}</p>
+                    <p className="text-xs text-ink-muted">{describePeriodic(e.rule)}</p>
                   </div>
-                )
-              })}
-            </div>
-          </Card>
+                  <button className="text-xs text-ink-muted" onClick={() => deleteBusinessEvent(e.id)}>
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
 
-          <Card className="mb-5 p-5" hover={false}>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-2xl text-ink">Команда</h2>
-              <Button variant="soft" onClick={() => setTeamOpen(true)}>
-                <Plus size={16} />
-              </Button>
-            </div>
-            <div className="mb-4 grid grid-cols-7 gap-1">
-              {monthDays.map((d) => {
-                const key = format(d, 'yyyy-MM-dd')
-                const has = (data.teamEvents || []).some((e) =>
-                  isWithinInterval(d, { start: parseISO(e.startDate), end: parseISO(e.endDate) }),
-                )
-                return (
-                  <div
-                    key={key}
-                    className={`rounded-lg py-2 text-center text-[10px] ${
-                      has ? 'bg-gold-light/70 text-ink' : 'bg-cream text-ink-muted'
-                    }`}
-                  >
-                    {format(d, 'd')}
-                  </div>
-                )
-              })}
-            </div>
-            {(data.teamEvents || []).map((e) => (
-              <div key={e.id} className="mb-2 flex items-center justify-between rounded-2xl bg-cream/70 px-3 py-2 text-sm">
-                <div>
-                  <p className="text-ink">
-                    {e.personName} · {e.note || e.type}
+      <Card className="mb-5 p-5" hover={false}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-display text-2xl text-ink">Календарь событий</h2>
+          <Button variant="soft" onClick={openNewTeam}>
+            <Plus size={16} />
+          </Button>
+        </div>
+        <p className="mb-4 text-xs text-ink-muted">
+          Разовый период (с… по…) или повтор: каждые N дней, число месяца и другие правила
+        </p>
+        <div className="mb-4 grid grid-cols-7 gap-1">
+          {monthDays.map((d) => {
+            const key = format(d, 'yyyy-MM-dd')
+            const has = areaEvents.some((e) => isTeamEventOnDate(e, key))
+            return (
+              <div
+                key={key}
+                className={`rounded-lg py-2 text-center text-[10px] ${
+                  has ? 'bg-gold-light/70 text-ink' : 'bg-cream text-ink-muted'
+                }`}
+              >
+                {format(d, 'd')}
+              </div>
+            )
+          })}
+        </div>
+        {areaEvents.length === 0 && (
+          <Empty title="Добавьте событие" text="Нажмите + — разовый интервал или повтор" />
+        )}
+        {areaEvents.map((e) => {
+          const status = isTeamEventImportantOn(e, today)
+          const next = e.recurrence ? nextTeamEventOccurrence(e, today) : null
+          return (
+            <div
+              key={e.id}
+              className={`mb-2 flex items-center justify-between rounded-2xl px-3 py-2 text-sm ${
+                status.important ? 'border border-gold/40 bg-gold-light/30' : 'bg-cream/70'
+              }`}
+            >
+              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openEditTeam(e)}>
+                <p className="text-ink">
+                  {e.personName}
+                  {status.important
+                    ? ` · ${teamEventWhenLabel(status.daysUntilStart, status.active).toLowerCase()}`
+                    : ''}
+                </p>
+                {e.recurrence ? (
+                  <p className="text-xs text-ink-muted">
+                    {describePeriodic(e.recurrence)}
+                    {next ? ` · ближайшее ${format(parseISO(next), 'd MMM', { locale: ru })}` : ''}
                   </p>
+                ) : (
                   <p className="text-xs text-ink-muted">
                     {format(parseISO(e.startDate), 'd MMM', { locale: ru })} —{' '}
                     {format(parseISO(e.endDate), 'd MMM', { locale: ru })}
                   </p>
-                </div>
-                <button className="text-xs text-ink-muted" onClick={() => deleteTeamEvent(e.id)}>
-                  ×
-                </button>
-              </div>
-            ))}
-          </Card>
-        </>
-      )}
+                )}
+              </button>
+              <button className="text-xs text-ink-muted" onClick={() => deleteTeamEvent(e.id)}>
+                ×
+              </button>
+            </div>
+          )
+        })}
+      </Card>
 
       <Modal open={planOpen} onClose={() => setPlanOpen(false)} title="Пункт плана">
         <div className="space-y-3">
@@ -487,46 +578,6 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
         </div>
       </Modal>
 
-      <Modal open={periodicOpen} onClose={() => setPeriodicOpen(false)} title="Периодическая привычка">
-        <div className="space-y-3">
-          <Input label="Название" value={periodicTitle} onChange={(e) => setPeriodicTitle(e.target.value)} />
-          <label className="block text-xs text-ink-muted">
-            Повторение
-            <select
-              className="mt-1.5 w-full rounded-2xl border border-sand/80 bg-cream-soft px-4 py-3 text-sm"
-              value={periodicKind}
-              onChange={(e) => setPeriodicKind(e.target.value)}
-            >
-              <option value="daily">Ежедневно</option>
-              <option value="weekly">Раз в неделю</option>
-              <option value="biweekly">Раз в две недели</option>
-              <option value="everyNDays">Каждые N дней</option>
-              <option value="monthly">Раз в месяц (число)</option>
-              <option value="monthlyLastDay">Последний день месяца</option>
-              <option value="nthWeekday">N-й день недели месяца</option>
-              <option value="timesPerMonth">Несколько раз в месяц</option>
-              <option value="everyNMonths">Раз в квартал / N месяцев</option>
-              <option value="yearly">Раз в год</option>
-            </select>
-          </label>
-          <Button
-            className="w-full"
-            onClick={() => {
-              if (!periodicTitle.trim()) return
-              addPeriodicHabit({
-                areaId,
-                title: periodicTitle.trim(),
-                rule: parseRule(periodicKind),
-              })
-              setPeriodicOpen(false)
-              setPeriodicTitle('')
-            }}
-          >
-            Создать
-          </Button>
-        </div>
-      </Modal>
-
       <Modal open={bizOpen} onClose={() => setBizOpen(false)} title="Событие бизнеса">
         <div className="space-y-3">
           <Input label="Название" value={bizTitle} onChange={(e) => setBizTitle(e.target.value)} />
@@ -546,7 +597,10 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
             className="w-full"
             onClick={() => {
               if (!bizTitle.trim()) return
-              addBusinessEvent({ title: bizTitle.trim(), rule: parseRule(bizKind) })
+              addBusinessEvent({
+                title: bizTitle.trim(),
+                rule: buildPeriodicRule(bizKind, { day: 15, weekday: 1, anchorDate: today }),
+              })
               setBizOpen(false)
               setBizTitle('')
             }}
@@ -556,27 +610,138 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
         </div>
       </Modal>
 
-      <Modal open={teamOpen} onClose={() => setTeamOpen(false)} title="Событие команды">
+      <Modal
+        open={teamOpen}
+        onClose={() => {
+          setTeamOpen(false)
+          setEditTeamId(null)
+        }}
+        title={editTeamId ? 'Изменить событие' : 'Новое событие'}
+      >
         <div className="space-y-3">
-          <Input label="Имя" value={person} onChange={(e) => setPerson(e.target.value)} />
-          <Input label="С" type="date" value={teamStart} onChange={(e) => setTeamStart(e.target.value)} />
-          <Input label="По" type="date" value={teamEnd} onChange={(e) => setTeamEnd(e.target.value)} />
-          <Button
-            className="w-full"
-            onClick={() => {
-              if (!person.trim()) return
-              addTeamEvent({
-                personName: person.trim(),
-                type: 'vacation',
-                startDate: teamStart,
-                endDate: teamEnd,
-                note: 'Отпуск',
-                coverHint: `Сегодня вы заменяете ${person.trim()}.`,
-              })
-              setTeamOpen(false)
-              setPerson('')
-            }}
-          >
+          <Input
+            label="Имя / название"
+            value={person}
+            onChange={(e) => setPerson(e.target.value)}
+            placeholder="Например: замена Юлии, маникюр, день рождения…"
+          />
+          <label className="block text-xs text-ink-muted">
+            Тип
+            <select
+              className="mt-1.5 w-full rounded-2xl border border-sand/80 bg-cream-soft px-4 py-3 text-sm"
+              value={teamMode}
+              onChange={(e) => setTeamMode(e.target.value as 'once' | 'repeat')}
+            >
+              <option value="once">Разовый период (с… по…)</option>
+              <option value="repeat">Повторяется</option>
+            </select>
+          </label>
+
+          {teamMode === 'once' ? (
+            <>
+              <Input label="С" type="date" value={teamStart} onChange={(e) => setTeamStart(e.target.value)} />
+              <Input label="По" type="date" value={teamEnd} onChange={(e) => setTeamEnd(e.target.value)} />
+            </>
+          ) : (
+            <>
+              <label className="block text-xs text-ink-muted">
+                Периодичность
+                <select
+                  className="mt-1.5 w-full rounded-2xl border border-sand/80 bg-cream-soft px-4 py-3 text-sm"
+                  value={recKind}
+                  onChange={(e) => setRecKind(e.target.value)}
+                >
+                  <option value="everyNDays">Каждые N дней</option>
+                  <option value="weekly">Каждую неделю</option>
+                  <option value="biweekly">Раз в две недели</option>
+                  <option value="monthly">Каждый месяц такого числа</option>
+                  <option value="monthlyLastDay">Последний день месяца</option>
+                  <option value="nthWeekday">N-й день недели месяца</option>
+                  <option value="timesPerMonth">Несколько раз в месяц</option>
+                  <option value="everyNMonths">Каждые N месяцев</option>
+                  <option value="yearly">Раз в год</option>
+                  <option value="daily">Каждый день</option>
+                </select>
+              </label>
+
+              {(recKind === 'weekly' || recKind === 'biweekly' || recKind === 'nthWeekday') && (
+                <label className="block text-xs text-ink-muted">
+                  День недели
+                  <select
+                    className="mt-1.5 w-full rounded-2xl border border-sand/80 bg-cream-soft px-4 py-3 text-sm"
+                    value={recWeekday}
+                    onChange={(e) => setRecWeekday(Number(e.target.value))}
+                  >
+                    {WEEKDAYS.map((w) => (
+                      <option key={w.v} value={w.v}>
+                        {w.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {(recKind === 'everyNDays' ||
+                recKind === 'everyNMonths' ||
+                recKind === 'nthWeekday') && (
+                <Input
+                  label={
+                    recKind === 'everyNDays'
+                      ? 'Каждые N дней'
+                      : recKind === 'nthWeekday'
+                        ? 'Какой по счёту (1–5)'
+                        : 'Каждые N месяцев'
+                  }
+                  type="number"
+                  min={1}
+                  value={recN}
+                  onChange={(e) => setRecN(Math.max(1, Number(e.target.value) || 1))}
+                />
+              )}
+
+              {(recKind === 'monthly' || recKind === 'everyNMonths' || recKind === 'yearly') && (
+                <Input
+                  label="Число месяца"
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={recDay}
+                  onChange={(e) => setRecDay(Math.min(31, Math.max(1, Number(e.target.value) || 1)))}
+                />
+              )}
+
+              {recKind === 'yearly' && (
+                <Input
+                  label="Месяц (1–12)"
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={recMonth}
+                  onChange={(e) => setRecMonth(Math.min(12, Math.max(1, Number(e.target.value) || 1)))}
+                />
+              )}
+
+              {recKind === 'timesPerMonth' && (
+                <Input
+                  label="Сколько раз в месяц"
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={recCount}
+                  onChange={(e) => setRecCount(Math.max(1, Number(e.target.value) || 1))}
+                />
+              )}
+
+              <Input
+                label="Действует с"
+                type="date"
+                value={teamStart}
+                onChange={(e) => setTeamStart(e.target.value)}
+              />
+            </>
+          )}
+
+          <Button className="w-full" onClick={saveTeamEvent}>
             Сохранить
           </Button>
         </div>

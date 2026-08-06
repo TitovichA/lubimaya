@@ -22,9 +22,11 @@ import type {
   BusinessRecurring,
   TeamEvent,
   CycleSettings,
+  ChallengeSettings,
 } from '../types'
 import { createSeedData, todayKey } from './seed'
 import { createThoughtsSeed, pickThoughtForDate } from './thoughts'
+import { defaultChallenge } from './challenge'
 import { loadLocal, saveLocal, getSyncMeta, setSyncMeta, pushCloud, pullCloud, mergeData, createSyncCode, deviceId } from './sync'
 
 type NavState = {
@@ -114,7 +116,9 @@ type Store = {
   addTeamEvent: (item: Omit<TeamEvent, 'id'>) => void
   updateTeamEvent: (id: string, patch: Partial<TeamEvent>) => void
   deleteTeamEvent: (id: string) => void
+  pruneTeamCalendar: () => void
   updateCycle: (patch: Partial<CycleSettings>) => void
+  updateChallenge: (patch: Partial<ChallengeSettings>) => void
   // sync
   enableSync: () => Promise<string>
   joinSync: (blobId: string) => Promise<void>
@@ -139,15 +143,63 @@ function migrateData(raw: AppData): AppData {
       thoughtByDate: raw.settings?.thoughtByDate || {},
       thoughtCycleShown: raw.settings?.thoughtCycleShown || [],
       cycle: { ...seed.settings.cycle, ...raw.settings?.cycle },
+      challenge: {
+        ...defaultChallenge(todayKey()),
+        ...seed.settings.challenge,
+        ...raw.settings?.challenge,
+      },
     },
     thoughts: raw.thoughts?.length ? raw.thoughts : createThoughtsSeed(),
     areaRules: raw.areaRules?.length ? raw.areaRules : seed.areaRules,
     areaPlans: raw.areaPlans?.length ? raw.areaPlans : seed.areaPlans,
     areaHabits: raw.areaHabits?.length ? raw.areaHabits : seed.areaHabits,
-    periodicHabits: raw.periodicHabits?.length ? raw.periodicHabits : seed.periodicHabits,
+    periodicHabits: [],
     businessEvents: raw.businessEvents?.length ? raw.businessEvents : seed.businessEvents,
-    teamEvents: raw.teamEvents ?? seed.teamEvents,
+    teamEvents: migrateTeamEvents(raw, seed),
   }
+}
+
+const FAR_END = '9999-12-31'
+
+function migrateTeamEvents(
+  raw: Partial<AppData> & { teamEvents?: TeamEvent[]; periodicHabits?: PeriodicHabit[] },
+  seed: AppData,
+): TeamEvent[] {
+  const base = (raw.teamEvents ?? seed.teamEvents).map((e) => ({
+    ...e,
+    areaId: e.areaId || ('business' as LifeAreaId),
+  }))
+  const ids = new Set(base.map((e) => e.id))
+  const fromHabits = (raw.periodicHabits || []).flatMap((h) => {
+    const id = `from-ph-${h.id}`
+    if (ids.has(id)) return []
+    const already = base.some(
+      (e) => e.areaId === h.areaId && e.personName === h.title && e.recurrence?.type === h.rule.type,
+    )
+    if (already) return []
+    const anchor =
+      ('anchorDate' in h.rule && h.rule.anchorDate) || todayKey()
+    return [
+      {
+        id,
+        areaId: h.areaId,
+        personName: h.title,
+        type: 'other' as const,
+        startDate: anchor,
+        endDate: FAR_END,
+        recurrence: h.rule,
+      },
+    ]
+  })
+  return [...base, ...fromHabits]
+}
+
+/** Удаляет разовые события после даты окончания; повторяющиеся сохраняются */
+export function pruneExpiredTeamEvents(data: AppData, date = todayKey()): AppData {
+  const list = data.teamEvents || []
+  const next = list.filter((e) => e.recurrence || e.endDate >= date)
+  if (next.length === list.length) return data
+  return { ...data, teamEvents: next, updatedAt: new Date().toISOString() }
 }
 
 function bumpLinkedGoals(data: AppData, habitId: string, date: string): AppData {
@@ -184,8 +236,11 @@ export const useAppStore = create<Store>((set, get) => ({
 
   init: () => {
     const local = loadLocal()
-    if (local) set({ data: migrateData(local), hydrated: true })
-    else {
+    if (local) {
+      const migrated = pruneExpiredTeamEvents(migrateData(local))
+      set({ data: migrated, hydrated: true })
+      saveLocal(migrated)
+    } else {
       const seed = createSeedData()
       saveLocal(seed)
       set({ data: seed, hydrated: true })
@@ -197,7 +252,15 @@ export const useAppStore = create<Store>((set, get) => ({
     set({ data: saved })
   },
 
-  setPage: (page, selectedId) => set({ nav: { ...get().nav, page, selectedId } }),
+  setPage: (page, selectedId) => {
+    const pruned = pruneExpiredTeamEvents(get().data)
+    if (pruned !== get().data) {
+      set({ data: pruned, nav: { ...get().nav, page, selectedId } })
+      get().persist()
+    } else {
+      set({ nav: { ...get().nav, page, selectedId } })
+    }
+  },
   setSelectedDate: (date) => set({ nav: { ...get().nav, selectedDate: date } }),
 
   updateSettings: (patch) => {
@@ -780,7 +843,14 @@ export const useAppStore = create<Store>((set, get) => ({
     set({
       data: {
         ...get().data,
-        teamEvents: get().data.teamEvents.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+        teamEvents: get().data.teamEvents.map((e) => {
+          if (e.id !== id) return e
+          const next = { ...e, ...patch }
+          if ('recurrence' in patch && patch.recurrence === undefined) {
+            delete next.recurrence
+          }
+          return next
+        }),
       },
     })
     get().persist()
@@ -789,8 +859,19 @@ export const useAppStore = create<Store>((set, get) => ({
     set({ data: { ...get().data, teamEvents: get().data.teamEvents.filter((e) => e.id !== id) } })
     get().persist()
   },
+  pruneTeamCalendar: () => {
+    const pruned = pruneExpiredTeamEvents(get().data)
+    if (pruned !== get().data) {
+      set({ data: pruned })
+      get().persist()
+    }
+  },
   updateCycle: (patch) => {
     get().updateSettings({ cycle: { ...get().data.settings.cycle, ...patch } })
+  },
+  updateChallenge: (patch) => {
+    const current = get().data.settings.challenge || defaultChallenge()
+    get().updateSettings({ challenge: { ...current, ...patch } })
   },
 
   enableSync: async () => {
