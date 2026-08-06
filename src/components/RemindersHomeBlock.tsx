@@ -37,17 +37,18 @@ function ReminderCard({ item }: { item: SmartReminder }) {
   )
 }
 
-export function RemindersHomeBlock() {
+export function RemindersHomeBlock({ date }: { date?: string }) {
   const data = useAppStore((s) => s.data)
   const pruneTeamCalendar = useAppStore((s) => s.pruneTeamCalendar)
-  const date = todayKey()
+  const viewDate = date || todayKey()
+  const isToday = viewDate === todayKey()
 
-  // Удаляем разовые события после даты окончания (как в календаре сфер)
+  // Удаляем разовые события после даты окончания (только при просмотре сегодня)
   useEffect(() => {
-    pruneTeamCalendar()
-  }, [pruneTeamCalendar])
+    if (isToday) pruneTeamCalendar()
+  }, [pruneTeamCalendar, isToday])
 
-  const visible = collectSmartReminders(data, date)
+  const visible = collectSmartReminders(data, viewDate)
 
   if (!visible.length) {
     return (
@@ -55,7 +56,9 @@ export function RemindersHomeBlock() {
         <SectionLabel>🔔 Напоминания</SectionLabel>
         <Card className="p-5" hover={false}>
           <p className="text-sm text-ink-muted">
-            Нет событий из календарей сфер на сегодня и ближайшие 3 дня.
+            {isToday
+              ? 'Нет событий из календарей сфер на сегодня и ближайшие 3 дня.'
+              : 'Нет важных событий календаря на этот день.'}
           </p>
         </Card>
       </section>

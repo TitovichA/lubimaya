@@ -65,6 +65,36 @@ html:not(.dark) {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Клики по всему сайту — рука, а не стрелка */
+a[href],
+button:not(:disabled),
+summary,
+label[for],
+select:not(:disabled),
+input[type='button']:not(:disabled),
+input[type='submit']:not(:disabled),
+input[type='reset']:not(:disabled),
+input[type='checkbox']:not(:disabled),
+input[type='radio']:not(:disabled),
+input[type='file']:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+[role='link'],
+[role='tab'],
+[role='menuitem'],
+[role='option'],
+[role='switch'],
+[role='checkbox'],
+.cursor-pointer {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'],
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
 html {
   scroll-behavior: smooth;
 }

@@ -1,5 +1,16 @@
 import { useMemo, useState } from 'react'
-import { Plus, Droplet } from 'lucide-react'
+import { Plus, Droplet, GripVertical, Pencil, Trash2 } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useAppStore } from '../lib/store'
 import {
   areaMeta,
@@ -23,9 +34,10 @@ import {
   LinearProgress,
   Modal,
   Input,
+  TextArea,
   Empty,
 } from '../components/ui'
-import type { LifeAreaId, PeriodicRule, TeamEvent } from '../types'
+import type { AreaPlanItem, AreaRule, LifeAreaId, PeriodicRule, TeamEvent } from '../types'
 import { parseISO, format, eachDayOfInterval, startOfMonth, endOfMonth, getDate, getMonth } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -39,6 +51,175 @@ const WEEKDAYS = [
   { v: 6, label: 'сб' },
   { v: 0, label: 'вс' },
 ]
+
+function SortableAreaRule({
+  rule,
+  onEdit,
+  onDelete,
+}: {
+  rule: AreaRule
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: rule.id,
+  })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.75 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="group flex items-center gap-2.5 rounded-2xl bg-cream/70 px-3 py-3 sm:gap-3 sm:px-4"
+    >
+      <button
+        type="button"
+        className="shrink-0 touch-none text-stone"
+        aria-label="Перетащить"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={16} />
+      </button>
+      <p className="min-w-0 flex-1 break-words text-sm leading-relaxed text-ink whitespace-pre-wrap">
+        {rule.title}
+      </p>
+      <div className="flex shrink-0 gap-0.5 self-center">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="rounded-xl p-2 text-ink-muted hover:bg-sand/40"
+          aria-label="Редактировать"
+        >
+          <Pencil size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="rounded-xl p-2 text-ink-muted hover:bg-sand/40"
+          aria-label="Удалить"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function isPlanDone(plan: AreaPlanItem) {
+  return plan.targetValue > 0 && plan.currentValue >= plan.targetValue
+}
+
+function SortableAreaPlan({
+  plan,
+  color,
+  onEdit,
+  onDelete,
+  onDec,
+  onInc,
+  onToggleDone,
+}: {
+  plan: AreaPlanItem
+  color: string
+  onEdit: () => void
+  onDelete: () => void
+  onDec: () => void
+  onInc: () => void
+  onToggleDone: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: plan.id,
+  })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.75 : 1,
+  }
+  const done = isPlanDone(plan)
+  const pct = plan.targetValue
+    ? Math.min(100, Math.round((plan.currentValue / plan.targetValue) * 100))
+    : 0
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group flex items-center gap-2.5 rounded-2xl px-3 py-3 sm:gap-3 sm:px-4 ${
+        done ? 'bg-cream/45' : 'bg-cream/70'
+      }`}
+    >
+      <button
+        type="button"
+        className="shrink-0 touch-none text-stone"
+        aria-label="Перетащить"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={16} />
+      </button>
+      <Check checked={done} onChange={onToggleDone} color={color} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <p
+            className={`min-w-0 break-words text-sm leading-relaxed whitespace-pre-wrap ${
+              done ? 'text-ink-muted line-through' : 'text-ink'
+            }`}
+          >
+            {plan.title}
+          </p>
+          <span className="shrink-0 text-xs text-ink-muted">
+            {plan.currentValue}/{plan.targetValue} {plan.unit}
+          </span>
+        </div>
+        {!done && (
+          <>
+            <div className="mt-2">
+              <LinearProgress value={pct} color={color} />
+            </div>
+            <div className="mt-2 flex gap-1">
+              <button
+                type="button"
+                onClick={onDec}
+                className="rounded-xl px-2.5 py-1 text-sm text-ink-muted hover:bg-sand/40"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                onClick={onInc}
+                className="rounded-xl px-2.5 py-1 text-sm text-ink-muted hover:bg-sand/40"
+              >
+                +
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="flex shrink-0 gap-0.5 self-center">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="rounded-xl p-2 text-ink-muted hover:bg-sand/40"
+          aria-label="Редактировать"
+        >
+          <Pencil size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="rounded-xl p-2 text-ink-muted hover:bg-sand/40"
+          aria-label="Удалить"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function ruleToForm(rule?: PeriodicRule) {
   if (!rule) {
@@ -78,6 +259,7 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
   const updateAreaHabit = useAppStore((s) => s.updateAreaHabit)
   const deleteAreaHabit = useAppStore((s) => s.deleteAreaHabit)
   const reorderAreaRules = useAppStore((s) => s.reorderAreaRules)
+  const reorderAreaPlans = useAppStore((s) => s.reorderAreaPlans)
   const addBusinessEvent = useAppStore((s) => s.addBusinessEvent)
   const toggleBusinessEvent = useAppStore((s) => s.toggleBusinessEvent)
   const deleteBusinessEvent = useAppStore((s) => s.deleteBusinessEvent)
@@ -89,7 +271,14 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
   const rules = (data.areaRules || [])
     .filter((r) => r.areaId === areaId)
     .sort((a, b) => a.order - b.order)
-  const plans = (data.areaPlans || []).filter((p) => p.areaId === areaId)
+  const plans = (data.areaPlans || [])
+    .filter((p) => p.areaId === areaId)
+    .sort((a, b) => {
+      const aDone = isPlanDone(a)
+      const bDone = isPlanDone(b)
+      if (aDone !== bDone) return aDone ? 1 : -1
+      return (a.order ?? 0) - (b.order ?? 0)
+    })
   const habits = (data.areaHabits || [])
     .filter((h) => h.areaId === areaId)
     .sort((a, b) => a.order - b.order)
@@ -98,11 +287,15 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
   const period = areaId === 'body' && isPeriodDay(cycle, today)
   const cycleDay = areaId === 'body' ? getCycleDay(cycle, today) : null
 
+  const [ruleOpen, setRuleOpen] = useState(false)
+  const [editRuleId, setEditRuleId] = useState<string | null>(null)
   const [ruleText, setRuleText] = useState('')
   const [habitText, setHabitText] = useState('')
   const [planOpen, setPlanOpen] = useState(false)
+  const [editPlanId, setEditPlanId] = useState<string | null>(null)
   const [planTitle, setPlanTitle] = useState('')
   const [planTarget, setPlanTarget] = useState(100)
+  const [planCurrent, setPlanCurrent] = useState(0)
   const [planUnit, setPlanUnit] = useState('%')
   const [teamOpen, setTeamOpen] = useState(false)
   const [editTeamId, setEditTeamId] = useState<string | null>(null)
@@ -169,6 +362,100 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
     setTeamOpen(true)
   }
 
+  const ruleSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+  )
+
+  function openNewRule() {
+    setEditRuleId(null)
+    setRuleText('')
+    setRuleOpen(true)
+  }
+
+  function openEditRule(rule: AreaRule) {
+    setEditRuleId(rule.id)
+    setRuleText(rule.title)
+    setRuleOpen(true)
+  }
+
+  function saveRule() {
+    const title = ruleText.trim()
+    if (!title) return
+    if (editRuleId) updateAreaRule(editRuleId, { title })
+    else addAreaRule(areaId, title)
+    setRuleOpen(false)
+    setRuleText('')
+    setEditRuleId(null)
+  }
+
+  function onRuleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = rules.findIndex((r) => r.id === active.id)
+    const newIndex = rules.findIndex((r) => r.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const next = arrayMove(rules, oldIndex, newIndex)
+    reorderAreaRules(
+      areaId,
+      next.map((r) => r.id),
+    )
+  }
+
+  function openNewPlan() {
+    setEditPlanId(null)
+    setPlanTitle('')
+    setPlanTarget(100)
+    setPlanCurrent(0)
+    setPlanUnit('%')
+    setPlanOpen(true)
+  }
+
+  function openEditPlan(plan: AreaPlanItem) {
+    setEditPlanId(plan.id)
+    setPlanTitle(plan.title)
+    setPlanTarget(plan.targetValue)
+    setPlanCurrent(plan.currentValue)
+    setPlanUnit(plan.unit)
+    setPlanOpen(true)
+  }
+
+  function savePlan() {
+    if (!planTitle.trim()) return
+    if (editPlanId) {
+      updateAreaPlan(editPlanId, {
+        title: planTitle.trim(),
+        targetValue: planTarget,
+        currentValue: planCurrent,
+        unit: planUnit,
+      })
+    } else {
+      addAreaPlan({
+        areaId,
+        title: planTitle.trim(),
+        targetValue: planTarget,
+        currentValue: planCurrent,
+        unit: planUnit,
+      })
+    }
+    setPlanOpen(false)
+    setEditPlanId(null)
+    setPlanTitle('')
+  }
+
+  function onPlanDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = plans.findIndex((p) => p.id === active.id)
+    const newIndex = plans.findIndex((p) => p.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const next = arrayMove(plans, oldIndex, newIndex)
+    reorderAreaPlans(
+      areaId,
+      next.map((p) => p.id),
+    )
+  }
+
   function saveTeamEvent() {
     if (!person.trim()) return
     if (teamMode === 'repeat') {
@@ -215,7 +502,7 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
   }
 
   return (
-    <Page title={`${meta.emoji} ${meta.title}`} subtitle={meta.subtitle} back={() => setPage('home')}>
+    <Page title={meta.title} subtitle={meta.subtitle} back={() => setPage('home')}>
       {areaId === 'body' && period && (
         <Card className="mb-6 border border-[#E8C4C4]/60 bg-[#FBF1F1]/80 p-5" hover={false}>
           <div className="flex items-start gap-3">
@@ -264,103 +551,68 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
         </Card>
       )}
 
-      <Card className="mb-5 p-5" hover={false}>
+      <Card className="mb-5 overflow-hidden p-5" hover={false}>
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="font-display text-2xl text-ink">Правила</h2>
-        </div>
-        <div className="space-y-2">
-          {rules.map((r, idx) => (
-            <div key={r.id} className="flex items-center gap-2 rounded-2xl bg-cream/70 px-3 py-2.5">
-              <div className="flex flex-col gap-0.5">
-                <button
-                  className="text-[10px] text-ink-muted disabled:opacity-30"
-                  disabled={idx === 0}
-                  onClick={() => {
-                    const ids = rules.map((x) => x.id)
-                    ;[ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]]
-                    reorderAreaRules(areaId, ids)
-                  }}
-                >
-                  ↑
-                </button>
-                <button
-                  className="text-[10px] text-ink-muted disabled:opacity-30"
-                  disabled={idx === rules.length - 1}
-                  onClick={() => {
-                    const ids = rules.map((x) => x.id)
-                    ;[ids[idx + 1], ids[idx]] = [ids[idx], ids[idx + 1]]
-                    reorderAreaRules(areaId, ids)
-                  }}
-                >
-                  ↓
-                </button>
-              </div>
-              <input
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-                value={r.title}
-                onChange={(e) => updateAreaRule(r.id, { title: e.target.value })}
-              />
-              <button className="text-xs text-ink-muted" onClick={() => deleteAreaRule(r.id)}>
-                удалить
-              </button>
-            </div>
-          ))}
-          {!rules.length && <Empty title="Добавьте первое правило" />}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <Input
-            value={ruleText}
-            onChange={(e) => setRuleText(e.target.value)}
-            placeholder="Новое правило..."
-          />
-          <Button
-            variant="soft"
-            onClick={() => {
-              if (!ruleText.trim()) return
-              addAreaRule(areaId, ruleText)
-              setRuleText('')
-            }}
-          >
+          <Button variant="soft" onClick={openNewRule}>
             <Plus size={16} />
           </Button>
         </div>
+        <DndContext sensors={ruleSensors} collisionDetection={closestCenter} onDragEnd={onRuleDragEnd}>
+          <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {rules.map((r) => (
+                <SortableAreaRule
+                  key={r.id}
+                  rule={r}
+                  onEdit={() => openEditRule(r)}
+                  onDelete={() => deleteAreaRule(r.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        {!rules.length && <Empty title="Добавьте первое правило" />}
       </Card>
 
-      <Card className="mb-5 p-5" hover={false}>
-        <div className="mb-4 flex items-center justify-between">
+      <Card className="mb-5 overflow-hidden p-5" hover={false}>
+        <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="font-display text-2xl text-ink">План моей 100-дневки</h2>
-          <Button variant="soft" onClick={() => setPlanOpen(true)}>
+          <Button variant="soft" onClick={openNewPlan}>
             <Plus size={16} />
           </Button>
         </div>
-        <div className="space-y-4">
-          {plans.map((p) => {
-            const pct = p.targetValue ? Math.min(100, Math.round((p.currentValue / p.targetValue) * 100)) : 0
-            return (
-              <div key={p.id}>
-                <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                  <span className="text-ink">{p.title}</span>
-                  <span className="text-ink-muted">
-                    {p.currentValue}/{p.targetValue} {p.unit}
-                  </span>
-                </div>
-                <LinearProgress value={pct} color={meta.color} />
-                <div className="mt-2 flex gap-2">
-                  <Button variant="ghost" onClick={() => updateAreaPlan(p.id, { currentValue: Math.max(0, p.currentValue - 1) })}>
-                    −
-                  </Button>
-                  <Button variant="ghost" onClick={() => updateAreaPlan(p.id, { currentValue: Math.min(p.targetValue, p.currentValue + 1) })}>
-                    +
-                  </Button>
-                  <Button variant="danger" onClick={() => deleteAreaPlan(p.id)}>
-                    Удалить
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
-          {!plans.length && <Empty title="Составьте план 100-дневки" />}
-        </div>
+        <DndContext sensors={ruleSensors} collisionDetection={closestCenter} onDragEnd={onPlanDragEnd}>
+          <SortableContext items={plans.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {plans.map((p) => (
+                <SortableAreaPlan
+                  key={p.id}
+                  plan={p}
+                  color={meta.color}
+                  onEdit={() => openEditPlan(p)}
+                  onDelete={() => deleteAreaPlan(p.id)}
+                  onDec={() =>
+                    updateAreaPlan(p.id, { currentValue: Math.max(0, p.currentValue - 1) })
+                  }
+                  onInc={() =>
+                    updateAreaPlan(p.id, {
+                      currentValue: Math.min(p.targetValue, p.currentValue + 1),
+                    })
+                  }
+                  onToggleDone={() =>
+                    updateAreaPlan(p.id, {
+                      currentValue: isPlanDone(p)
+                        ? Math.max(0, p.targetValue - 1)
+                        : p.targetValue,
+                    })
+                  }
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        {!plans.length && <Empty title="Составьте план 100-дневки" />}
       </Card>
 
       <Card className="mb-5 p-5" hover={false}>
@@ -553,26 +805,46 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
         })}
       </Card>
 
-      <Modal open={planOpen} onClose={() => setPlanOpen(false)} title="Пункт плана">
+      <Modal
+        open={ruleOpen}
+        onClose={() => setRuleOpen(false)}
+        title={editRuleId ? 'Редактировать правило' : 'Новое правило'}
+      >
+        <div className="space-y-4">
+          <TextArea
+            label="Текст правила"
+            value={ruleText}
+            onChange={(e) => setRuleText(e.target.value)}
+            placeholder="Напишите правило..."
+            rows={4}
+          />
+          <Button onClick={saveRule} className="w-full">
+            Сохранить
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={planOpen}
+        onClose={() => setPlanOpen(false)}
+        title={editPlanId ? 'Редактировать план' : 'Пункт плана'}
+      >
         <div className="space-y-3">
           <Input label="Название" value={planTitle} onChange={(e) => setPlanTitle(e.target.value)} />
-          <Input label="Цель" type="number" value={planTarget} onChange={(e) => setPlanTarget(Number(e.target.value))} />
+          <Input
+            label="Цель"
+            type="number"
+            value={planTarget}
+            onChange={(e) => setPlanTarget(Number(e.target.value))}
+          />
+          <Input
+            label="Сейчас"
+            type="number"
+            value={planCurrent}
+            onChange={(e) => setPlanCurrent(Number(e.target.value))}
+          />
           <Input label="Единица" value={planUnit} onChange={(e) => setPlanUnit(e.target.value)} />
-          <Button
-            className="w-full"
-            onClick={() => {
-              if (!planTitle.trim()) return
-              addAreaPlan({
-                areaId,
-                title: planTitle.trim(),
-                targetValue: planTarget,
-                currentValue: 0,
-                unit: planUnit,
-              })
-              setPlanOpen(false)
-              setPlanTitle('')
-            }}
-          >
+          <Button className="w-full" onClick={savePlan}>
             Сохранить
           </Button>
         </div>

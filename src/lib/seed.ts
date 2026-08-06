@@ -1,4 +1,4 @@
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { AppData, RitualItem, SundayRitual } from '../types'
 import { createThoughtsSeed, createSundayThoughtsSeed } from './thoughts'
@@ -7,12 +7,16 @@ export function todayKey(date = new Date()) {
   return format(date, 'yyyy-MM-dd')
 }
 
-export function formatRuDate(date = new Date()) {
-  return format(date, 'd MMMM yyyy', { locale: ru })
+function asDate(date: Date | string = new Date()) {
+  return typeof date === 'string' ? parseISO(date) : date
 }
 
-export function formatRuWeekday(date = new Date()) {
-  return format(date, 'EEEE', { locale: ru })
+export function formatRuDate(date: Date | string = new Date()) {
+  return format(asDate(date), 'd MMMM yyyy', { locale: ru })
+}
+
+export function formatRuWeekday(date: Date | string = new Date()) {
+  return format(asDate(date), 'EEEE', { locale: ru })
 }
 
 export function greeting(name: string, date = new Date()) {
@@ -517,19 +521,19 @@ export function createSeedData(): AppData {
       { id: 'ar-f2', areaId: 'family', title: 'Тёплые слова каждый день', order: 1 },
     ],
     areaPlans: [
-      { id: 'ap-h1', areaId: 'home', title: 'Обновить спальню', targetValue: 100, currentValue: 20, unit: '%' },
-      { id: 'ap-h2', areaId: 'home', title: 'Пересадить растения', targetValue: 8, currentValue: 2, unit: 'шт' },
-      { id: 'ap-h3', areaId: 'home', title: 'Купить новый текстиль', targetValue: 1, currentValue: 0, unit: 'набор' },
-      { id: 'ap-h4', areaId: 'home', title: 'Разобрать кладовую', targetValue: 100, currentValue: 10, unit: '%' },
-      { id: 'ap-h5', areaId: 'home', title: 'Организовать библиотеку', targetValue: 100, currentValue: 0, unit: '%' },
-      { id: 'ap-b1', areaId: 'body', title: '80 тренировок', targetValue: 80, currentValue: 0, unit: 'тренировок' },
-      { id: 'ap-b2', areaId: 'body', title: '100 медитаций', targetValue: 100, currentValue: 0, unit: 'раз' },
-      { id: 'ap-b3', areaId: 'body', title: '100 прогулок', targetValue: 100, currentValue: 0, unit: 'прогулок' },
-      { id: 'ap-b4', areaId: 'body', title: 'Минус 4 кг', targetValue: 4, currentValue: 0, unit: 'кг' },
-      { id: 'ap-biz1', areaId: 'business', title: 'Автоматизация процессов', targetValue: 100, currentValue: 15, unit: '%' },
-      { id: 'ap-biz2', areaId: 'business', title: 'Контент-план', targetValue: 30, currentValue: 4, unit: 'публикаций' },
-      { id: 'ap-g1', areaId: 'growth', title: 'Прочитать 12 книг', targetValue: 12, currentValue: 1, unit: 'книг' },
-      { id: 'ap-f1', areaId: 'family', title: 'Семейные ужины', targetValue: 40, currentValue: 3, unit: 'вечеров' },
+      { id: 'ap-h1', areaId: 'home', title: 'Обновить спальню', targetValue: 100, currentValue: 20, unit: '%', order: 0 },
+      { id: 'ap-h2', areaId: 'home', title: 'Пересадить растения', targetValue: 8, currentValue: 2, unit: 'шт', order: 1 },
+      { id: 'ap-h3', areaId: 'home', title: 'Купить новый текстиль', targetValue: 1, currentValue: 0, unit: 'набор', order: 2 },
+      { id: 'ap-h4', areaId: 'home', title: 'Разобрать кладовую', targetValue: 100, currentValue: 10, unit: '%', order: 3 },
+      { id: 'ap-h5', areaId: 'home', title: 'Организовать библиотеку', targetValue: 100, currentValue: 0, unit: '%', order: 4 },
+      { id: 'ap-b1', areaId: 'body', title: '80 тренировок', targetValue: 80, currentValue: 0, unit: 'тренировок', order: 0 },
+      { id: 'ap-b2', areaId: 'body', title: '100 медитаций', targetValue: 100, currentValue: 0, unit: 'раз', order: 1 },
+      { id: 'ap-b3', areaId: 'body', title: '100 прогулок', targetValue: 100, currentValue: 0, unit: 'прогулок', order: 2 },
+      { id: 'ap-b4', areaId: 'body', title: 'Минус 4 кг', targetValue: 4, currentValue: 0, unit: 'кг', order: 3 },
+      { id: 'ap-biz1', areaId: 'business', title: 'Автоматизация процессов', targetValue: 100, currentValue: 15, unit: '%', order: 0 },
+      { id: 'ap-biz2', areaId: 'business', title: 'Контент-план', targetValue: 30, currentValue: 4, unit: 'публикаций', order: 1 },
+      { id: 'ap-g1', areaId: 'growth', title: 'Прочитать 12 книг', targetValue: 12, currentValue: 1, unit: 'книг', order: 0 },
+      { id: 'ap-f1', areaId: 'family', title: 'Семейные ужины', targetValue: 40, currentValue: 3, unit: 'вечеров', order: 0 },
     ],
     areaHabits: [
       { id: 'ah-h1', areaId: 'home', title: 'Полить растения', order: 0, completions: {} },

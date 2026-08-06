@@ -198,6 +198,7 @@ export type AreaPlanItem = {
   targetValue: number
   currentValue: number
   unit: string
+  order: number
 }
 
 export type AreaHabit = {

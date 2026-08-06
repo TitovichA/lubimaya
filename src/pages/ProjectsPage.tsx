@@ -1,15 +1,13 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import { useAppStore } from '../lib/store'
 import { goalPercent } from '../lib/analytics'
 import { allAreaScores } from '../lib/areas'
 import { HABIT_COLORS } from '../lib/seed'
 import { Page, Card, Button, Modal, Input, TextArea, Empty, LinearProgress } from '../components/ui'
 import { AppIcon } from '../components/AppIcon'
+import { LifeAreaRings } from '../components/LifeAreaRings'
 import type { LifeSphere } from '../types'
-
-// LifePage uses the same recharts + areas imports above
 
 const spheres: LifeSphere[] = ['здоровье', 'отношения', 'финансы', 'развитие', 'дом', 'бизнес', 'отдых']
 
@@ -175,28 +173,14 @@ export function LifePage() {
   const data = useAppStore((s) => s.data)
   const setPage = useAppStore((s) => s.setPage)
   const scores = allAreaScores(data)
-  const chart = scores.map((s) => ({
-    name: s.label.replace('Мой ', '').replace('Моё ', ''),
-    value: s.value,
-    full: 100,
-  }))
 
   return (
     <Page
-      title="Панель развития жизни"
+      title="Колесо баланса"
       subtitle="Индекс по сферам: дом, тело, бизнес, саморазвитие и семья."
     >
-      <Card className="mb-6 p-5" hover={false}>
-        <div className="mx-auto h-80 max-w-lg">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart data={chart}>
-              <PolarGrid stroke="#E8DFD0" />
-              <PolarAngleAxis dataKey="name" tick={{ fill: '#7A746C', fontSize: 11 }} />
-              <Radar dataKey="value" stroke="#C4A574" fill="#C4A574" fillOpacity={0.25} />
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
+      <Card className="mb-6 p-6 md:p-8" hover={false}>
+        <LifeAreaRings scores={scores} onSelect={(pageId) => setPage(pageId)} />
       </Card>
       <div className="space-y-3">
         {scores.map((s) => (

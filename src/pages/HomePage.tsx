@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { addDays, parseISO, format } from 'date-fns'
+import { ru } from 'date-fns/locale'
 import { useAppStore } from '../lib/store'
 import { formatRuDate, formatRuWeekday, todayKey } from '../lib/seed'
 import {
@@ -25,6 +28,7 @@ import { AppIcon } from '../components/AppIcon'
 import { AreaIllustration } from '../components/AreaIllustrations'
 import { ChallengeBadge } from '../components/ChallengeBadge'
 import { RemindersHomeBlock } from '../components/RemindersHomeBlock'
+import { LifeAreaRings } from '../components/LifeAreaRings'
 import { useEffectiveTheme } from '../components/ThemeToggle'
 import { ThoughtOfDayCard } from './ThoughtsPage'
 import { allAreaScores, LIFE_AREAS } from '../lib/areas'
@@ -42,23 +46,30 @@ const fade = {
 export function HomePage() {
   const data = useAppStore((s) => s.data)
   const setPage = useAppStore((s) => s.setPage)
+  const selectedDate = useAppStore((s) => s.nav.selectedDate)
+  const setSelectedDate = useAppStore((s) => s.setSelectedDate)
   const updateChallenge = useAppStore((s) => s.updateChallenge)
   const challenge = data.settings.challenge || defaultChallenge()
-  const progress = dayProgress(data)
-  const challengeProgress = challengeOverallProgress(data)
-  const dayNum = challengeDayNumber(challenge)
-  const remaining = challengeRemaining(challenge)
-  const complete = isChallengeComplete(challenge)
-  const morningDone = getRitualDone(data, 'morning').length
-  const eveningDone = getRitualDone(data, 'evening').length
-  const habitsDone = data.habits.filter((h) => habitDoneToday(h)).length
-  const sundayActive = isSunday()
-  const sundayProg = sundayRitualProgress(data)
-  const sundayWaiting = nextSundayWaitingLabel()
-  const todayTasks = data.tasks.filter((t) => t.date === todayKey()).sort((a, b) => a.order - b.order)
+  const today = todayKey()
+  const viewDate = selectedDate || today
+  const isToday = viewDate === today
+  const viewDateObj = parseISO(viewDate)
+
+  const progress = dayProgress(data, viewDate)
+  const challengeProgress = challengeOverallProgress(data, viewDate)
+  const dayNum = challengeDayNumber(challenge, viewDate)
+  const remaining = challengeRemaining(challenge, today)
+  const complete = isChallengeComplete(challenge, today)
+  const morningDone = getRitualDone(data, 'morning', viewDate).length
+  const eveningDone = getRitualDone(data, 'evening', viewDate).length
+  const habitsDone = data.habits.filter((h) => habitDoneToday(h, viewDate)).length
+  const sundayActive = isSunday(viewDate)
+  const sundayProg = sundayRitualProgress(data, viewDate)
+  const sundayWaiting = nextSundayWaitingLabel(viewDate)
+  const dayTasks = data.tasks.filter((t) => t.date === viewDate).sort((a, b) => a.order - b.order)
   const week = periodAverage(data, 7)
   const insights = generateInsights(data)
-  const scores = allAreaScores(data)
+  const scores = allAreaScores(data, viewDate)
   const hidden = new Set(
     data.settings.hiddenWidgets.map((w) => (w === 'quote' ? 'thought' : w)),
   )
@@ -75,6 +86,10 @@ export function HomePage() {
   useEffect(() => {
     if (complete) setCongratsOpen(true)
   }, [complete, challenge.startDate, challenge.durationDays])
+
+  const shiftDay = (delta: number) => {
+    setSelectedDate(format(addDays(viewDateObj, delta), 'yyyy-MM-dd'))
+  }
 
   const openChallenge = () => {
     setDraftTitle(challenge.title)
@@ -113,8 +128,55 @@ export function HomePage() {
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-muted md:text-base">
                 Каждый день делает меня ближе к моей лучшей версии.
               </p>
-              <p className="mt-5 text-xs uppercase tracking-[0.2em] text-ink-muted">{formatRuWeekday()}</p>
-              <p className="mt-2 text-ink-muted">{formatRuDate()}</p>
+
+              <div className="mt-5 flex max-w-md items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => shiftDay(-1)}
+                  aria-label="Предыдущий день"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-ink-muted transition hover:bg-sand/40 hover:text-ink"
+                >
+                  <ChevronLeft size={22} strokeWidth={1.6} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isToday) setSelectedDate(today)
+                  }}
+                  className="min-w-0 flex-1 rounded-2xl px-2 py-1.5 text-center transition hover:bg-sand/30"
+                  title={isToday ? undefined : 'Нажмите, чтобы вернуться к сегодня'}
+                >
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={viewDate}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">
+                        {formatRuWeekday(viewDate)}
+                        {!isToday && (
+                          <span className="ml-2 normal-case tracking-normal text-gold-deep">
+                            · к сегодня
+                          </span>
+                        )}
+                      </p>
+                      <p className="mt-1.5 font-display text-xl text-ink md:text-2xl">
+                        {formatRuDate(viewDate)}
+                      </p>
+                    </motion.div>
+                  </AnimatePresence>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => shiftDay(1)}
+                  aria-label="Следующий день"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-ink-muted transition hover:bg-sand/40 hover:text-ink"
+                >
+                  <ChevronRight size={22} strokeWidth={1.6} />
+                </button>
+              </div>
             </div>
 
             <ChallengeBadge
@@ -131,9 +193,9 @@ export function HomePage() {
         </motion.header>
       )}
 
-      {(widgets.includes('thought')) && (
+      {widgets.includes('thought') && (
         <motion.div {...fade} transition={{ delay: 0.1 }} className="mb-8">
-          <ThoughtOfDayCard />
+          <ThoughtOfDayCard date={viewDate} />
         </motion.div>
       )}
 
@@ -149,7 +211,9 @@ export function HomePage() {
               sublabel="день"
             />
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-ink-muted">Сегодня выполнено</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-ink-muted">
+                {isToday ? 'Сегодня выполнено' : 'Выполнено за день'}
+              </p>
               <p className="mt-2 font-display text-3xl text-ink">{progress}%</p>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">
                 Ритуалы, привычки, задачи и дела дня
@@ -202,7 +266,7 @@ export function HomePage() {
         </section>
       )}
 
-      {widgets.includes('todayDue') && <RemindersHomeBlock />}
+      {widgets.includes('todayDue') && <RemindersHomeBlock date={viewDate} />}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {widgets.includes('morning') && (
@@ -260,12 +324,18 @@ export function HomePage() {
 
       {widgets.includes('tasks') && (
         <section className="mb-8">
-          <SectionLabel>📝 Задачи на сегодня</SectionLabel>
+          <SectionLabel>
+            {isToday
+              ? '📝 Задачи на сегодня'
+              : `📝 Задачи · ${format(viewDateObj, 'd MMM', { locale: ru })}`}
+          </SectionLabel>
           <Card className="divide-y divide-sand/60 overflow-hidden" hover={false}>
-            {todayTasks.length === 0 && (
-              <p className="p-5 text-sm text-ink-muted">На сегодня задач нет — можно добавить.</p>
+            {dayTasks.length === 0 && (
+              <p className="p-5 text-sm text-ink-muted">
+                {isToday ? 'На сегодня задач нет — можно добавить.' : 'На этот день задач нет.'}
+              </p>
             )}
-            {todayTasks.slice(0, 5).map((t) => {
+            {dayTasks.slice(0, 5).map((t) => {
               const area = t.areaId ? LIFE_AREAS.find((a) => a.id === t.areaId) : null
               return (
               <button
@@ -325,25 +395,16 @@ export function HomePage() {
             <Stat label="Сегодня" value={`${progress}%`} />
             <Stat label="Неделя" value={`${week}%`} />
             <Stat label="Привычки" value={`${habitsDone}/${data.habits.length}`} />
-            <Stat label="Задачи" value={`${todayTasks.filter((t) => t.done).length}/${todayTasks.length}`} />
+            <Stat label="Задачи" value={`${dayTasks.filter((t) => t.done).length}/${dayTasks.length}`} />
           </Card>
         </section>
       )}
 
       {widgets.includes('life') && (
         <section className="mb-8">
-          <SectionLabel>Панель развития жизни</SectionLabel>
-          <Card className="p-5" onClick={() => setPage('life')}>
-            <div className="grid grid-cols-5 gap-2">
-              {scores.map((s) => (
-                <div key={s.id} className="text-center">
-                  <p className="text-xs text-ink-muted">{s.label}</p>
-                  <p className="mt-1 font-display text-lg" style={{ color: s.color }}>
-                    {s.value}%
-                  </p>
-                </div>
-              ))}
-            </div>
+          <SectionLabel>Колесо баланса</SectionLabel>
+          <Card className="p-6 md:p-8" hover={false}>
+            <LifeAreaRings scores={scores} onSelect={(pageId) => setPage(pageId)} />
           </Card>
         </section>
       )}
@@ -513,31 +574,32 @@ function RitualHomeCard({
     sunday: dark
       ? {
           bg: muted
-            ? 'linear-gradient(155deg, #1A1816 0%, #24201C 55%, #2C2822 100%)'
-            : 'linear-gradient(155deg, #2C2418 0%, #3F3424 42%, #534530 100%)',
-          border: muted ? 'rgba(90, 80, 70, 0.5)' : 'rgba(196, 165, 116, 0.45)',
-          accent: '#E0C89A',
-          glow: 'rgba(196, 165, 116, 0.22)',
-          orb: 'rgba(70, 56, 36, 0.45)',
-          title: '#F7F0E4',
-          muted: '#C4B8A4',
+            ? 'linear-gradient(155deg, #181A16 0%, #22261E 55%, #2A3026 100%)'
+            : 'linear-gradient(155deg, #243028 0%, #314038 48%, #3E5044 100%)',
+          border: muted ? 'rgba(80, 90, 72, 0.45)' : 'rgba(168, 184, 146, 0.55)',
+          accent: muted ? '#8A9A7A' : '#C5D4A8',
+          glow: muted ? 'rgba(90, 100, 80, 0.15)' : 'rgba(168, 184, 146, 0.28)',
+          orb: muted ? 'rgba(40, 48, 36, 0.4)' : 'rgba(70, 90, 68, 0.4)',
+          title: muted ? '#C8D0BE' : '#F4F7EE',
+          muted: muted ? '#8A9480' : '#C8D4B8',
           track: 'rgba(255,255,255,0.12)',
         }
       : {
           bg: muted
-            ? 'linear-gradient(155deg, #FFFEFB 0%, #F5F1EA 55%, #EBE4DA 100%)'
-            : 'linear-gradient(155deg, #FFFBF4 0%, #F3E6CF 40%, #DCC9A0 100%)',
-          border: muted ? 'rgba(232, 223, 208, 0.8)' : 'rgba(196, 165, 116, 0.55)',
-          accent: '#C4A574',
-          glow: 'rgba(232, 213, 181, 0.7)',
-          orb: 'rgba(255, 252, 245, 0.9)',
-          title: '#1A1A1A',
-          muted: '#7A746C',
-          track: 'rgba(255,255,255,0.55)',
+            ? 'linear-gradient(155deg, #FAFBF8 0%, #F0F2EC 55%, #E4E8DE 100%)'
+            : 'linear-gradient(155deg, #F6F9F0 0%, #E8F0DC 50%, #D5E4C6 100%)',
+          border: muted ? 'rgba(200, 210, 188, 0.7)' : 'rgba(152, 176, 130, 0.55)',
+          accent: muted ? '#9AAB8A' : '#6B8A55',
+          glow: muted ? 'rgba(200, 210, 188, 0.35)' : 'rgba(188, 208, 160, 0.55)',
+          orb: muted ? 'rgba(245, 248, 240, 0.7)' : 'rgba(240, 248, 228, 0.85)',
+          title: muted ? '#5A6054' : '#2A3822',
+          muted: muted ? '#8A9080' : '#5A6E4A',
+          track: 'rgba(255,255,255,0.5)',
         },
   } as const
 
   const t = themes[tone]
+  const sundayHighlight = tone === 'sunday' && !muted
 
   return (
     <motion.div
@@ -548,7 +610,15 @@ function RitualHomeCard({
       whileTap={{ scale: 0.985 }}
       onClick={onClick}
       className="group relative cursor-pointer overflow-hidden rounded-3xl border p-5 shadow-[var(--shadow-card)]"
-      style={{ background: t.bg, borderColor: t.border }}
+      style={{
+        background: t.bg,
+        borderColor: t.border,
+        boxShadow: sundayHighlight
+          ? dark
+            ? '0 10px 28px rgba(40, 60, 40, 0.35)'
+            : '0 10px 28px rgba(140, 168, 120, 0.22)'
+          : undefined,
+      }}
     >
       <motion.div
         className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full blur-2xl"
@@ -563,7 +633,11 @@ function RitualHomeCard({
         transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      <div className="pointer-events-none absolute right-3 top-3 opacity-[0.18] transition duration-500 group-hover:opacity-30">
+      <div
+        className={`pointer-events-none absolute right-3 top-3 transition duration-500 ${
+          sundayHighlight ? 'opacity-30 group-hover:opacity-45' : 'opacity-[0.18] group-hover:opacity-30'
+        }`}
+      >
         {tone === 'morning' && (
           <svg width="72" height="72" viewBox="0 0 72 72" fill="none" aria-hidden>
             <circle cx="36" cy="40" r="14" stroke={t.accent} strokeWidth="1.5" />
@@ -606,6 +680,13 @@ function RitualHomeCard({
             <path d="M8 48C18 28 28 18 38 14C48 18 58 28 68 48" stroke={t.accent} strokeWidth="1.4" />
             <path d="M14 48C22 34 30 26 38 22C46 26 54 34 62 48" stroke={t.accent} strokeWidth="1.2" opacity="0.7" />
             <path d="M38 14V48" stroke={t.accent} strokeWidth="1.2" />
+            {sundayHighlight && (
+              <>
+                <circle cx="22" cy="36" r="2" fill={t.accent} opacity="0.55" />
+                <circle cx="54" cy="34" r="1.6" fill={t.accent} opacity="0.45" />
+                <circle cx="38" cy="28" r="1.8" fill={t.accent} opacity="0.5" />
+              </>
+            )}
           </svg>
         )}
       </div>
@@ -614,6 +695,17 @@ function RitualHomeCard({
         <div className="flex items-start justify-between gap-2">
           <div>
             {emoji && <div className="mb-1.5 text-[1.35rem] leading-none">{emoji}</div>}
+            {sundayHighlight && (
+              <span
+                className="mb-2 inline-block rounded-full px-2.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.16em]"
+                style={{
+                  background: dark ? 'rgba(197, 212, 168, 0.2)' : 'rgba(95, 122, 74, 0.14)',
+                  color: t.accent,
+                }}
+              >
+                день покоя
+              </span>
+            )}
             <p
               className="text-[10px] font-medium uppercase tracking-[0.2em]"
               style={{ color: t.muted }}

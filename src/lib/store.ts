@@ -112,9 +112,10 @@ type Store = {
   updateAreaRule: (id: string, patch: Partial<AreaRule>) => void
   deleteAreaRule: (id: string) => void
   reorderAreaRules: (areaId: LifeAreaId, ids: string[]) => void
-  addAreaPlan: (item: Omit<AreaPlanItem, 'id'>) => void
+  addAreaPlan: (item: Omit<AreaPlanItem, 'id' | 'order'> & { order?: number }) => void
   updateAreaPlan: (id: string, patch: Partial<AreaPlanItem>) => void
   deleteAreaPlan: (id: string) => void
+  reorderAreaPlans: (areaId: LifeAreaId, ids: string[]) => void
   addAreaHabit: (areaId: LifeAreaId, title: string) => void
   toggleAreaHabit: (id: string, date?: string) => void
   updateAreaHabit: (id: string, patch: Partial<AreaHabit>) => void
@@ -175,7 +176,7 @@ function migrateData(raw: AppData): AppData {
       : seed.sundayRitual,
     sundayProgress: raw.sundayProgress || [],
     areaRules: raw.areaRules?.length ? raw.areaRules : seed.areaRules,
-    areaPlans: raw.areaPlans?.length ? raw.areaPlans : seed.areaPlans,
+    areaPlans: migrateAreaPlans(raw.areaPlans?.length ? raw.areaPlans : seed.areaPlans),
     areaHabits: raw.areaHabits?.length ? raw.areaHabits : seed.areaHabits,
     periodicHabits: [],
     businessEvents: raw.businessEvents?.length ? raw.businessEvents : seed.businessEvents,
@@ -185,6 +186,16 @@ function migrateData(raw: AppData): AppData {
 
 function getSundayDoneIds(data: AppData, date: string) {
   return getSundayDone(data, date)
+}
+
+function migrateAreaPlans(plans: AreaPlanItem[]): AreaPlanItem[] {
+  const counters: Record<string, number> = {}
+  return plans.map((p) => {
+    if (typeof p.order === 'number') return p
+    const o = counters[p.areaId] ?? 0
+    counters[p.areaId] = o + 1
+    return { ...p, order: o }
+  })
 }
 
 const FAR_END = '9999-12-31'
@@ -869,7 +880,16 @@ export const useAppStore = create<Store>((set, get) => ({
     get().persist()
   },
   addAreaPlan: (item) => {
-    set({ data: { ...get().data, areaPlans: [...(get().data.areaPlans || []), { ...item, id: uuid() }] } })
+    const plans = get().data.areaPlans || []
+    const order =
+      item.order ??
+      plans.filter((p) => p.areaId === item.areaId).length
+    set({
+      data: {
+        ...get().data,
+        areaPlans: [...plans, { ...item, id: uuid(), order }],
+      },
+    })
     get().persist()
   },
   updateAreaPlan: (id, patch) => {
@@ -883,6 +903,13 @@ export const useAppStore = create<Store>((set, get) => ({
   },
   deleteAreaPlan: (id) => {
     set({ data: { ...get().data, areaPlans: get().data.areaPlans.filter((p) => p.id !== id) } })
+    get().persist()
+  },
+  reorderAreaPlans: (areaId, ids) => {
+    const others = get().data.areaPlans.filter((p) => p.areaId !== areaId)
+    const map = new Map(get().data.areaPlans.map((p) => [p.id, p]))
+    const reordered = ids.map((id, order) => ({ ...map.get(id)!, order }))
+    set({ data: { ...get().data, areaPlans: [...others, ...reordered] } })
     get().persist()
   },
   addAreaHabit: (areaId, title) => {

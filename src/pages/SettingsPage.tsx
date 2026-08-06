@@ -288,7 +288,7 @@ const allWidgets: { id: HomeWidget; label: string }[] = [
   { id: 'tasks', label: 'Задачи' },
   { id: 'goals', label: 'Цели' },
   { id: 'stats', label: 'Статистика' },
-  { id: 'life', label: 'Панель жизни' },
+  { id: 'life', label: 'Колесо баланса' },
   { id: 'ai', label: 'ИИ' },
 ]
 

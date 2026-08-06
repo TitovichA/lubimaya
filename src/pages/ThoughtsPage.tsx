@@ -15,6 +15,7 @@ import { useAppStore } from '../lib/store'
 import { Page, Card, Button, Modal, TextArea, Empty } from '../components/ui'
 import type { Thought } from '../types'
 import { isSunday } from '../lib/sunday'
+import { todayKey } from '../lib/seed'
 
 function SortableThought({
   thought,
@@ -164,19 +165,20 @@ export function ThoughtsPage() {
   )
 }
 
-export function ThoughtOfDayCard() {
+export function ThoughtOfDayCard({ date }: { date?: string }) {
   const ensureThoughtOfDay = useAppStore((s) => s.ensureThoughtOfDay)
   const ensureSundayThought = useAppStore((s) => s.ensureSundayThought)
   const setPage = useAppStore((s) => s.setPage)
   const [text, setText] = useState('')
   const [sundayMode, setSundayMode] = useState(false)
+  const day = date || todayKey()
 
   useEffect(() => {
-    const sunday = isSunday()
+    const sunday = isSunday(day)
     setSundayMode(sunday)
-    const t = sunday ? ensureSundayThought() : ensureThoughtOfDay()
+    const t = sunday ? ensureSundayThought(day) : ensureThoughtOfDay(day)
     setText(t?.text || '')
-  }, [ensureThoughtOfDay, ensureSundayThought])
+  }, [day, ensureThoughtOfDay, ensureSundayThought])
 
   if (!text) return null
 
