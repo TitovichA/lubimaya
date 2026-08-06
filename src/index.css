@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #F7F3EC;
+  --color-cream-soft: #FBF8F3;
+  --color-sand: #E8DFD0;
+  --color-beige: #D9CBB8;
+  --color-mist: #E8EEF2;
+  --color-sky: #D4E4ED;
+  --color-sky-deep: #A8C5D4;
+  --color-stone: #C4BDB3;
+  --color-ink: #1A1A1A;
+  --color-ink-soft: #3D3A36;
+  --color-ink-muted: #7A746C;
+  --color-gold: #C4A574;
+  --color-gold-light: #E8D5B5;
+  --color-gold-deep: #A68B5B;
+  --color-white: #FFFFFF;
+  --color-glass: rgba(255, 255, 255, 0.55);
+
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Manrope", system-ui, sans-serif;
+
+  --shadow-soft: 0 4px 24px rgba(26, 26, 26, 0.04), 0 1px 3px rgba(26, 26, 26, 0.03);
+  --shadow-card: 0 8px 32px rgba(26, 26, 26, 0.06), 0 2px 8px rgba(26, 26, 26, 0.03);
+  --shadow-lift: 0 16px 48px rgba(26, 26, 26, 0.08), 0 4px 12px rgba(26, 26, 26, 0.04);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  background: var(--color-cream);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-stone);
+  border-radius: 999px;
+}
+
+::selection {
+  background: var(--color-gold-light);
+  color: var(--color-ink);
+}
+
+.glass {
+  background: var(--color-glass);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-top {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}

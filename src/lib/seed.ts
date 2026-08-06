@@ -1,0 +1,487 @@
+import { format } from 'date-fns'
+import { ru } from 'date-fns/locale'
+import type { AppData, RitualItem } from '../types'
+
+export const QUOTES = [
+  { text: 'Дисциплина — это мост между целями и достижениями.', author: 'Джим Рон' },
+  { text: 'Маленькие шаги каждый день складываются в большие перемены.', author: 'Неизвестный' },
+  { text: 'Спокойствие — это высшая форма силы.', author: 'Лао-цзы' },
+  { text: 'То, что мы делаем регулярно, определяет, кем мы становимся.', author: 'Аристотель' },
+  { text: 'Красота порядка освобождает ум для творчества.', author: 'Неизвестный' },
+  { text: 'Утро задаёт тон всему дню.', author: 'Неизвестный' },
+  { text: 'Прогресс, а не совершенство.', author: 'Неизвестный' },
+  { text: 'Забота о себе — не эгоизм, а мудрость.', author: 'Неизвестный' },
+  { text: 'Тишина внутри создаёт ясность снаружи.', author: 'Неизвестный' },
+  { text: 'Каждый день — чистый холст.', author: 'Неизвестный' },
+  { text: 'Привычки формируют судьбу тихими руками.', author: 'Неизвестный' },
+  { text: 'Сила растёт в постоянстве, а не в порывах.', author: 'Неизвестный' },
+]
+
+export function getQuoteOfDay(date = new Date()) {
+  const dayOfYear = Math.floor(
+    (date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000,
+  )
+  return QUOTES[dayOfYear % QUOTES.length]
+}
+
+export function todayKey(date = new Date()) {
+  return format(date, 'yyyy-MM-dd')
+}
+
+export function formatRuDate(date = new Date()) {
+  return format(date, 'd MMMM yyyy', { locale: ru })
+}
+
+export function formatRuWeekday(date = new Date()) {
+  return format(date, 'EEEE', { locale: ru })
+}
+
+export function greeting(name: string, date = new Date()) {
+  const h = date.getHours()
+  const n = name || 'любимая'
+  if (h < 5) return `Доброй ночи, ${n}`
+  if (h < 12) return `Доброе утро, ${n}`
+  if (h < 18) return `Добрый день, ${n}`
+  return `Добрый вечер, ${n}`
+}
+
+export const HABIT_COLORS = [
+  '#C4A574',
+  '#A8C5D4',
+  '#B8C9A8',
+  '#D4B5A0',
+  '#C5B8D4',
+  '#A8B5C4',
+  '#D4C5A8',
+  '#B5C4C0',
+]
+
+export const HABIT_ICONS = [
+  'droplets',
+  'footprints',
+  'book-open',
+  'dumbbell',
+  'heart',
+  'brain',
+  'moon',
+  'sun',
+  'leaf',
+  'sparkles',
+  'music',
+  'coffee',
+  'apple',
+  'pen',
+  'flower-2',
+]
+
+const morningDefaults: Omit<RitualItem, 'id'>[] = [
+  { title: 'Подъём', description: 'Встать без откладывания', time: '06:30', order: 0 },
+  { title: 'Стакан воды', description: 'Тёплая вода с лимоном', time: '06:35', order: 1 },
+  { title: 'Медитация', description: '10 минут тишины', time: '06:45', order: 2 },
+  { title: 'Дыхательная практика', description: '4-7-8 или бокс', time: '07:00', order: 3 },
+  { title: 'Зарядка', description: 'Лёгкая мобильность', time: '07:15', order: 4 },
+  { title: 'Умывание', description: 'Холодная вода, уход', time: '07:30', order: 5 },
+  { title: 'Завтрак', description: 'Осознанный приём пищи', time: '07:45', order: 6 },
+  { title: 'Планирование дня', description: '3 главных дела', time: '08:00', order: 7 },
+  { title: 'Чтение', description: '15–20 страниц', time: '08:15', order: 8 },
+  { title: 'Растяжка', description: 'Шея, спина, бёдра', time: '08:30', order: 9 },
+  { title: 'Благодарность', description: '3 пункта', time: '08:40', order: 10 },
+  { title: 'Аффирмации', description: 'Спокойная установка дня', time: '08:45', order: 11 },
+  { title: 'Дневник', description: 'Мысли и намерения', time: '08:50', order: 12 },
+  { title: 'Прогулка', description: 'Свежий воздух', time: '09:00', order: 13 },
+  { title: 'Витамины', time: '09:10', order: 14 },
+  { title: 'Подготовка пространства', description: 'Порядок на столе', time: '09:15', order: 15 },
+]
+
+const eveningDefaults: Omit<RitualItem, 'id'>[] = [
+  { title: 'Подведение итогов дня', description: 'Что получилось', time: '21:00', order: 0 },
+  { title: 'Благодарность', description: '3 тёплых момента', time: '21:10', order: 1 },
+  { title: 'Чтение', description: 'Бумажная книга', time: '21:20', order: 2 },
+  { title: 'Растяжка', description: 'Расслабление тела', time: '21:40', order: 3 },
+  { title: 'Уход за лицом', description: 'Очищение и крем', time: '21:50', order: 4 },
+  { title: 'Планирование завтра', description: 'Топ-3 задачи', time: '22:00', order: 5 },
+  { title: 'Цифровой детокс', description: 'Телефон в сторону', time: '22:10', order: 6 },
+  { title: 'Чай / вода', description: 'Без кофеина', time: '22:15', order: 7 },
+  { title: 'Дыхание перед сном', description: 'Медленный выдох', time: '22:20', order: 8 },
+  { title: 'Дневник чувств', description: 'Короткая запись', time: '22:25', order: 9 },
+  { title: 'Подготовка одежды', description: 'На завтра', time: '22:30', order: 10 },
+  { title: 'Порядок в комнате', time: '22:35', order: 11 },
+  { title: 'Музыка / тишина', description: 'Спокойный фон', time: '22:40', order: 12 },
+  { title: 'Визуализация', description: 'Желаемый день', time: '22:45', order: 13 },
+  { title: 'Сон', description: 'Свет выключен', time: '23:00', order: 14 },
+  { title: 'Отключение уведомлений', time: '22:50', order: 15 },
+]
+
+function withIds(items: Omit<RitualItem, 'id'>[], prefix: string): RitualItem[] {
+  return items.map((item, i) => ({ ...item, id: `${prefix}-${i}` }))
+}
+
+export function createSeedData(): AppData {
+  const now = new Date().toISOString()
+  const today = todayKey()
+
+  return {
+    version: 1,
+    updatedAt: now,
+    settings: {
+      name: 'Любимая',
+      greetingStyle: 'warm',
+      homeWidgets: [
+        'greeting',
+        'quote',
+        'progress',
+        'morning',
+        'habits',
+        'evening',
+        'tasks',
+        'goals',
+        'stats',
+        'life',
+      ],
+      hiddenWidgets: [],
+      themeAccent: '#C4A574',
+      notificationsEnabled: true,
+      weekStartsOn: 1,
+    },
+    morningRitual: withIds(morningDefaults, 'm'),
+    eveningRitual: withIds(eveningDefaults, 'e'),
+    morningProgress: [],
+    eveningProgress: [],
+    habits: [
+      {
+        id: 'h-water',
+        title: '2 литра воды',
+        description: 'Пить равномерно в течение дня',
+        icon: 'droplets',
+        color: '#A8C5D4',
+        category: 'Здоровье',
+        targetPerDay: 8,
+        unit: 'стаканов',
+        createdAt: now,
+        completions: {},
+        reminders: [{ id: 'r1', time: '10:00', enabled: true }, { id: 'r2', time: '15:00', enabled: true }],
+      },
+      {
+        id: 'h-steps',
+        title: '10 000 шагов',
+        description: 'Движение каждый день',
+        icon: 'footprints',
+        color: '#B8C9A8',
+        category: 'Здоровье',
+        targetPerDay: 10000,
+        unit: 'шагов',
+        createdAt: now,
+        completions: {},
+        reminders: [{ id: 'r3', time: '18:00', enabled: true }],
+      },
+      {
+        id: 'h-read',
+        title: 'Чтение',
+        description: 'Не менее 20 страниц',
+        icon: 'book-open',
+        color: '#C4A574',
+        category: 'Саморазвитие',
+        targetPerDay: 1,
+        unit: 'раз',
+        createdAt: now,
+        completions: {},
+        linkedGoalId: 'g-books',
+        reminders: [],
+      },
+      {
+        id: 'h-sport',
+        title: 'Тренировка',
+        description: 'Силовая, балет или кардио',
+        icon: 'dumbbell',
+        color: '#D4B5A0',
+        category: 'Здоровье',
+        targetPerDay: 1,
+        unit: 'раз',
+        createdAt: now,
+        completions: {},
+        linkedGoalId: 'g-train',
+        reminders: [{ id: 'r4', time: '08:00', enabled: true }],
+      },
+      {
+        id: 'h-sugar',
+        title: 'Без сахара',
+        description: 'День без добавленного сахара',
+        icon: 'apple',
+        color: '#B5C4C0',
+        category: 'Здоровье',
+        targetPerDay: 1,
+        unit: 'раз',
+        createdAt: now,
+        completions: {},
+        reminders: [],
+      },
+      {
+        id: 'h-english',
+        title: 'Английский',
+        description: '30 минут практики',
+        icon: 'brain',
+        color: '#C5B8D4',
+        category: 'Саморазвитие',
+        targetPerDay: 1,
+        unit: 'раз',
+        createdAt: now,
+        completions: {},
+        linkedGoalId: 'g-english',
+        reminders: [{ id: 'r5', time: '19:00', enabled: true }],
+      },
+      {
+        id: 'h-meditate',
+        title: 'Медитация',
+        description: '10 минут осознанности',
+        icon: 'flower-2',
+        color: '#A8B5C4',
+        category: 'Здоровье',
+        targetPerDay: 1,
+        unit: 'раз',
+        createdAt: now,
+        completions: {},
+        reminders: [],
+      },
+      {
+        id: 'h-ballet',
+        title: 'Балет',
+        description: 'Растяжка и техника',
+        icon: 'sparkles',
+        color: '#D4C5A8',
+        category: 'Красота',
+        targetPerDay: 1,
+        unit: 'раз',
+        createdAt: now,
+        completions: {},
+        reminders: [],
+      },
+    ],
+    tasks: [
+      {
+        id: 't1',
+        title: 'Составить план на неделю',
+        notes: 'Приоритеты по работе и здоровью',
+        priority: 'high',
+        color: '#C4A574',
+        deadline: today,
+        category: 'Работа',
+        done: false,
+        createdAt: now,
+        date: today,
+        subtasks: [
+          { id: 'st1', title: 'Выписать цели', done: false },
+          { id: 'st2', title: 'Распределить по дням', done: false },
+        ],
+        repeat: { type: 'weekly', days: [1] },
+        order: 0,
+        reminders: [{ id: 'tr1', time: '09:30', enabled: true }],
+      },
+      {
+        id: 't2',
+        title: 'Купить продукты',
+        priority: 'medium',
+        color: '#A8C5D4',
+        category: 'Дом',
+        done: false,
+        createdAt: now,
+        date: today,
+        subtasks: [],
+        repeat: { type: 'none' },
+        order: 1,
+        reminders: [],
+      },
+      {
+        id: 't3',
+        title: 'Позвонить маме',
+        priority: 'medium',
+        color: '#B8C9A8',
+        category: 'Отношения',
+        done: false,
+        createdAt: now,
+        date: today,
+        subtasks: [],
+        repeat: { type: 'weekly', days: [0] },
+        order: 2,
+        reminders: [],
+      },
+    ],
+    goals: [
+      {
+        id: 'g-train',
+        title: '100 тренировок за 100 дней',
+        description: 'Регулярность важнее интенсивности',
+        startDate: today,
+        endDate: undefined,
+        targetValue: 100,
+        currentValue: 0,
+        unit: 'тренировок',
+        color: '#D4B5A0',
+        milestones: [
+          { id: 'gm1', title: '25 тренировок', targetValue: 25, done: false },
+          { id: 'gm2', title: '50 тренировок', targetValue: 50, done: false },
+          { id: 'gm3', title: '75 тренировок', targetValue: 75, done: false },
+        ],
+        history: [],
+        linkedHabitIds: ['h-sport'],
+        reminders: [],
+        sphere: 'здоровье',
+      },
+      {
+        id: 'g-books',
+        title: 'Прочитать 50 книг',
+        description: 'Классика, нон-фикшн, развитие',
+        startDate: today,
+        targetValue: 50,
+        currentValue: 0,
+        unit: 'книг',
+        color: '#C4A574',
+        milestones: [
+          { id: 'gm4', title: '10 книг', targetValue: 10, done: false },
+          { id: 'gm5', title: '25 книг', targetValue: 25, done: false },
+        ],
+        history: [],
+        linkedHabitIds: ['h-read'],
+        reminders: [],
+        sphere: 'развитие',
+      },
+      {
+        id: 'g-english',
+        title: 'Выучить английский',
+        description: 'Уровень B2',
+        startDate: today,
+        targetValue: 100,
+        currentValue: 0,
+        unit: '% прогресса',
+        color: '#C5B8D4',
+        milestones: [
+          { id: 'gm6', title: 'A2 → B1', targetValue: 40, done: false },
+          { id: 'gm7', title: 'B1 → B2', targetValue: 80, done: false },
+        ],
+        history: [],
+        linkedHabitIds: ['h-english'],
+        reminders: [],
+        projectId: 'p-english',
+        sphere: 'развитие',
+      },
+      {
+        id: 'g-weight',
+        title: 'Сбросить 5 кг',
+        description: 'Мягко и устойчиво',
+        startDate: today,
+        targetValue: 5,
+        currentValue: 0,
+        unit: 'кг',
+        color: '#B8C9A8',
+        milestones: [],
+        history: [],
+        linkedHabitIds: ['h-sugar', 'h-steps'],
+        reminders: [],
+        sphere: 'здоровье',
+      },
+    ],
+    notes: [
+      {
+        id: 'n1',
+        title: 'Идеи для утра',
+        content:
+          'Добавить короткую прогулку у озера.\nПопробовать журналинг от руки.\nМузыка без слов во время завтрака.',
+        tags: ['утро', 'идеи'],
+        createdAt: now,
+        updatedAt: now,
+        attachments: [],
+        pinned: true,
+      },
+      {
+        id: 'n2',
+        title: 'Список книг',
+        content: '1. Atomic Habits\n2. Deep Work\n3. The Creative Act\n4. Thinking, Fast and Slow',
+        tags: ['чтение'],
+        createdAt: now,
+        updatedAt: now,
+        attachments: [],
+      },
+    ],
+    projects: [
+      {
+        id: 'p-health',
+        title: 'Здоровье',
+        description: 'Тело, энергия, сон, питание',
+        color: '#B8C9A8',
+        icon: 'heart',
+        sphere: 'здоровье',
+        createdAt: now,
+      },
+      {
+        id: 'p-home',
+        title: 'Дом мечты',
+        description: 'Пространство, уют, порядок',
+        color: '#D4C5A8',
+        icon: 'home',
+        sphere: 'дом',
+        createdAt: now,
+      },
+      {
+        id: 'p-english',
+        title: 'Изучение английского',
+        description: 'Системный путь к B2',
+        color: '#C5B8D4',
+        icon: 'brain',
+        sphere: 'развитие',
+        createdAt: now,
+      },
+      {
+        id: 'p-business',
+        title: 'Бизнес',
+        description: 'Проекты и рост',
+        color: '#C4A574',
+        icon: 'briefcase',
+        sphere: 'бизнес',
+        createdAt: now,
+      },
+    ],
+    dayTemplates: [
+      {
+        id: 'tpl-work',
+        name: 'Рабочий',
+        morningRitualIds: [],
+        eveningRitualIds: [],
+        habitIds: ['h-water', 'h-english', 'h-read'],
+        color: '#C4A574',
+      },
+      {
+        id: 'tpl-weekend',
+        name: 'Выходной',
+        morningRitualIds: [],
+        eveningRitualIds: [],
+        habitIds: ['h-steps', 'h-ballet', 'h-read'],
+        color: '#A8C5D4',
+      },
+      {
+        id: 'tpl-travel',
+        name: 'Путешествие',
+        morningRitualIds: [],
+        eveningRitualIds: [],
+        habitIds: ['h-water', 'h-steps'],
+        color: '#D4B5A0',
+      },
+      {
+        id: 'tpl-sick',
+        name: 'Болезнь',
+        morningRitualIds: [],
+        eveningRitualIds: [],
+        habitIds: ['h-water', 'h-meditate'],
+        color: '#B5C4C0',
+      },
+    ],
+    dayLogs: [],
+    lifeBalance: {
+      здоровье: 72,
+      отношения: 65,
+      финансы: 58,
+      развитие: 70,
+      дом: 62,
+      бизнес: 55,
+      отдых: 60,
+    },
+  }
+}
