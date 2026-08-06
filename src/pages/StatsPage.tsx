@@ -17,7 +17,6 @@ import {
   activityHeatmap,
   bestHabitStreaks,
   generateInsights,
-  habitDoneToday,
 } from '../lib/analytics'
 import { todayKey } from '../lib/seed'
 import { Page, Card, SectionLabel } from '../components/ui'
@@ -31,7 +30,8 @@ export function StatsPage() {
   const heat = activityHeatmap(data, 119)
   const streaks = bestHabitStreaks(data).slice(0, 5)
   const insights = generateInsights(data)
-  const habitsDone = data.habits.filter((h) => habitDoneToday(h)).length
+  const areaHabitsDone = (data.areaHabits || []).filter((h) => h.completions[todayKey()]).length
+  const areaHabitsTotal = (data.areaHabits || []).length
   const tasksDone = data.tasks.filter((t) => t.done).length
 
   const weekChart = useMemo(
@@ -70,9 +70,9 @@ export function StatsPage() {
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Card className="p-4" hover={false}>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-ink-muted">Привычки сегодня</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-ink-muted">Привычки сфер</p>
           <p className="mt-2 font-display text-2xl">
-            {habitsDone}/{data.habits.length}
+            {areaHabitsDone}/{areaHabitsTotal}
           </p>
         </Card>
         <Card className="p-4" hover={false}>

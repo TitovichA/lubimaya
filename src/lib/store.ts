@@ -26,6 +26,7 @@ import type {
   ChallengeSettings,
 } from '../types'
 import { createSeedData, todayKey } from './seed'
+import { pushAppHistory, isSyncingFromHistory } from './routing'
 import { createThoughtsSeed, createSundayThoughtsSeed, pickThoughtForDate } from './thoughts'
 import { defaultChallenge } from './challenge'
 import { upsertSundayProgress, getSundayDone } from './sunday'
@@ -142,10 +143,13 @@ type Store = {
 
 function migrateData(raw: AppData): AppData {
   const seed = createSeedData()
-  const widgets = (raw.settings?.homeWidgets || seed.settings.homeWidgets).map((w) =>
-    w === 'quote' ? 'thought' : w,
-  ) as AppData['settings']['homeWidgets']
+  const widgets = (raw.settings?.homeWidgets || seed.settings.homeWidgets)
+    .map((w) => (w === 'quote' ? 'thought' : w))
+    .filter((w) => w !== 'habits' && w !== 'goals') as AppData['settings']['homeWidgets']
   const mergedWidgets = [...new Set([...widgets, 'areas', 'todayDue', 'sunday'])] as HomeWidget[]
+  const hiddenWidgets = (raw.settings?.hiddenWidgets || []).filter(
+    (w) => w !== 'habits' && w !== 'goals',
+  ) as HomeWidget[]
   return {
     ...seed,
     ...raw,
@@ -154,6 +158,7 @@ function migrateData(raw: AppData): AppData {
       ...seed.settings,
       ...raw.settings,
       homeWidgets: mergedWidgets,
+      hiddenWidgets,
       themeMode: raw.settings?.themeMode === 'dark' ? 'dark' : 'light',
       themeScheduleEnabled: !!raw.settings?.themeScheduleEnabled,
       themeLightFrom: raw.settings?.themeLightFrom || '07:00',
@@ -181,6 +186,7 @@ function migrateData(raw: AppData): AppData {
     periodicHabits: [],
     businessEvents: raw.businessEvents?.length ? raw.businessEvents : seed.businessEvents,
     teamEvents: migrateTeamEvents(raw, seed),
+    goals: migrateAreaGoals(raw.goals?.length ? raw.goals : seed.goals, seed.goals),
   }
 }
 
@@ -196,6 +202,32 @@ function migrateAreaPlans(plans: AreaPlanItem[]): AreaPlanItem[] {
     counters[p.areaId] = o + 1
     return { ...p, order: o }
   })
+}
+
+const SPHERE_TO_AREA: Record<string, LifeAreaId> = {
+  здоровье: 'body',
+  развитие: 'growth',
+  дом: 'home',
+  бизнес: 'business',
+  отношения: 'family',
+  финансы: 'business',
+  отдых: 'body',
+}
+
+function migrateAreaGoals(goals: Goal[], seedGoals: Goal[]): Goal[] {
+  const mapped = goals.map((g) => ({
+    ...g,
+    areaId: g.areaId || (g.sphere ? SPHERE_TO_AREA[g.sphere] : undefined),
+  }))
+  const byArea = new Map<LifeAreaId, Goal>()
+  for (const g of mapped) {
+    if (!g.areaId) continue
+    if (!byArea.has(g.areaId)) byArea.set(g.areaId, g)
+  }
+  for (const g of seedGoals) {
+    if (g.areaId && !byArea.has(g.areaId)) byArea.set(g.areaId, g)
+  }
+  return Array.from(byArea.values())
 }
 
 const FAR_END = '9999-12-31'
@@ -299,8 +331,24 @@ export const useAppStore = create<Store>((set, get) => ({
     } else {
       set({ nav: { ...get().nav, page, selectedId } })
     }
+    const nav = get().nav
+    pushAppHistory({
+      page: nav.page,
+      selectedId: nav.selectedId,
+      selectedDate: nav.selectedDate,
+    })
   },
-  setSelectedDate: (date) => set({ nav: { ...get().nav, selectedDate: date } }),
+  setSelectedDate: (date) => {
+    set({ nav: { ...get().nav, selectedDate: date } })
+    const nav = get().nav
+    if (nav.page === 'day' && !isSyncingFromHistory()) {
+      pushAppHistory({
+        page: nav.page,
+        selectedId: nav.selectedId,
+        selectedDate: date,
+      })
+    }
+  },
 
   updateSettings: (patch) => {
     set({ data: { ...get().data, settings: { ...get().data.settings, ...patch } } })

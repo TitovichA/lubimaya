@@ -25,19 +25,20 @@ import {
   buildPeriodicRule,
   nextTeamEventOccurrence,
 } from '../lib/areas'
-import { todayKey } from '../lib/seed'
+import { todayKey, HABIT_COLORS } from '../lib/seed'
 import {
   Page,
   Card,
   Button,
   Check,
   LinearProgress,
+  ProgressRing,
   Modal,
   Input,
   TextArea,
   Empty,
 } from '../components/ui'
-import type { AreaPlanItem, AreaRule, LifeAreaId, PeriodicRule, TeamEvent } from '../types'
+import type { AreaPlanItem, AreaRule, Goal, LifeAreaId, PeriodicRule, TeamEvent } from '../types'
 import { parseISO, format, eachDayOfInterval, startOfMonth, endOfMonth, getDate, getMonth } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -267,6 +268,8 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
   const updateTeamEvent = useAppStore((s) => s.updateTeamEvent)
   const deleteTeamEvent = useAppStore((s) => s.deleteTeamEvent)
   const updateCycle = useAppStore((s) => s.updateCycle)
+  const addGoal = useAppStore((s) => s.addGoal)
+  const updateGoal = useAppStore((s) => s.updateGoal)
 
   const rules = (data.areaRules || [])
     .filter((r) => r.areaId === areaId)
@@ -282,15 +285,30 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
   const habits = (data.areaHabits || [])
     .filter((h) => h.areaId === areaId)
     .sort((a, b) => a.order - b.order)
+  const areaGoal = (data.goals || []).find((g) => g.areaId === areaId)
+  const plansDone = plans.filter((p) => isPlanDone(p)).length
+  const areaGoalPct = plans.length
+    ? Math.round(
+        plans.reduce(
+          (s, p) => s + (p.targetValue ? Math.min(100, (p.currentValue / p.targetValue) * 100) : 0),
+          0,
+        ) / plans.length,
+      )
+    : 0
 
   const cycle = data.settings.cycle
   const period = areaId === 'body' && isPeriodDay(cycle, today)
   const cycleDay = areaId === 'body' ? getCycleDay(cycle, today) : null
 
+  const [goalOpen, setGoalOpen] = useState(false)
+  const [goalTitle, setGoalTitle] = useState('')
+  const [goalColor, setGoalColor] = useState(meta.color)
+  const [goalDesc, setGoalDesc] = useState('')
   const [ruleOpen, setRuleOpen] = useState(false)
   const [editRuleId, setEditRuleId] = useState<string | null>(null)
   const [ruleText, setRuleText] = useState('')
   const [habitText, setHabitText] = useState('')
+  const [habitOpen, setHabitOpen] = useState(false)
   const [planOpen, setPlanOpen] = useState(false)
   const [editPlanId, setEditPlanId] = useState<string | null>(null)
   const [planTitle, setPlanTitle] = useState('')
@@ -420,6 +438,39 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
     setPlanOpen(true)
   }
 
+  function openGoalModal(goal?: Goal) {
+    setGoalTitle(goal?.title || '')
+    setGoalColor(goal?.color || meta.color)
+    setGoalDesc(goal?.description || '')
+    setGoalOpen(true)
+  }
+
+  function saveGoal() {
+    if (!goalTitle.trim()) return
+    if (areaGoal) {
+      updateGoal(areaGoal.id, {
+        title: goalTitle.trim(),
+        color: goalColor,
+        description: goalDesc.trim() || undefined,
+        areaId,
+      })
+    } else {
+      addGoal({
+        title: goalTitle.trim(),
+        description: goalDesc.trim() || undefined,
+        startDate: today,
+        targetValue: 100,
+        unit: '%',
+        color: goalColor,
+        milestones: [],
+        linkedHabitIds: [],
+        reminders: [],
+        areaId,
+      })
+    }
+    setGoalOpen(false)
+  }
+
   function savePlan() {
     if (!planTitle.trim()) return
     if (editPlanId) {
@@ -503,6 +554,50 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
 
   return (
     <Page title={meta.title} subtitle={meta.subtitle} back={() => setPage('home')}>
+      {areaGoal ? (
+        <Card className="relative mb-6 p-6" onClick={() => openGoalModal(areaGoal)}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              openGoalModal(areaGoal)
+            }}
+            className="absolute right-4 top-4 rounded-xl p-2 text-ink-muted transition hover:bg-sand/40 hover:text-ink"
+            aria-label="Редактировать цель"
+          >
+            <Pencil size={16} />
+          </button>
+          <div className="flex items-center gap-5 pr-8">
+            <ProgressRing
+              value={areaGoalPct}
+              size={96}
+              color={areaGoal.color}
+              label={`${areaGoalPct}%`}
+            />
+            <div className="min-w-0 flex-1">
+              <h3 className="font-display text-2xl text-ink">{areaGoal.title}</h3>
+              {areaGoal.description && (
+                <p className="mt-1 text-sm leading-relaxed text-ink-soft">{areaGoal.description}</p>
+              )}
+              <p className="mt-1 text-sm text-ink-muted">
+                {plansDone} / {plans.length} пунктов плана
+              </p>
+              <p className="mt-1 text-xs text-ink-muted">
+                Осталось {Math.max(0, plans.length - plansDone)}
+              </p>
+              <div className="mt-4">
+                <LinearProgress value={areaGoalPct} color={areaGoal.color} />
+              </div>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <Card className="mb-6 p-6" onClick={() => openGoalModal()}>
+          <p className="font-display text-2xl text-ink">Цель сферы</p>
+          <p className="mt-2 text-sm text-ink-muted">Нажмите, чтобы добавить главную цель</p>
+        </Card>
+      )}
+
       {areaId === 'body' && period && (
         <Card className="mb-6 border border-[#E8C4C4]/60 bg-[#FBF1F1]/80 p-5" hover={false}>
           <div className="flex items-start gap-3">
@@ -524,7 +619,7 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
         <Card className="mb-5 p-5" hover={false}>
           <h2 className="mb-3 font-display text-2xl text-ink">Важно</h2>
           <p className="mb-4 text-xs text-ink-muted">
-            Из календаря событий: сегодня и за 3 дня до начала
+            Из календаря событий: сегодня и завтра
           </p>
           <div className="space-y-2">
             {importantTeam.map(({ e, meta }) => (
@@ -616,7 +711,18 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
       </Card>
 
       <Card className="mb-5 p-5" hover={false}>
-        <h2 className="mb-4 font-display text-2xl text-ink">Ежедневные привычки</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-display text-2xl text-ink">Ежедневные привычки</h2>
+          <Button
+            variant="soft"
+            onClick={() => {
+              setHabitText('')
+              setHabitOpen(true)
+            }}
+          >
+            <Plus size={16} />
+          </Button>
+        </div>
         <div className="space-y-2">
           {habits.map((h) => {
             const soft = period && h.softOnCycle
@@ -629,11 +735,9 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
                   </p>
                   {soft && <p className="text-[10px] text-ink-muted">мягкая в дни цикла</p>}
                 </div>
-                <button className="text-xs text-ink-muted" onClick={() => deleteAreaHabit(h.id)}>
-                  ×
-                </button>
                 {areaId === 'body' && (
                   <button
+                    type="button"
                     className="text-[10px] text-ink-muted"
                     onClick={() => updateAreaHabit(h.id, { softOnCycle: !h.softOnCycle })}
                     title="Мягкая в дни цикла"
@@ -641,22 +745,18 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
                     {h.softOnCycle ? 'мягкая' : 'строгая'}
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => deleteAreaHabit(h.id)}
+                  className="rounded-xl p-2 text-ink-muted hover:bg-sand/40"
+                  aria-label="Удалить"
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
             )
           })}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <Input value={habitText} onChange={(e) => setHabitText(e.target.value)} placeholder="Новая привычка..." />
-          <Button
-            variant="soft"
-            onClick={() => {
-              if (!habitText.trim()) return
-              addAreaHabit(areaId, habitText)
-              setHabitText('')
-            }}
-          >
-            <Plus size={16} />
-          </Button>
+          {!habits.length && <Empty title="Добавьте первую привычку" />}
         </div>
         {areaId === 'body' && (
           <p className="mt-3 text-xs text-ink-muted">
@@ -729,8 +829,13 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
                     <p>{e.title}</p>
                     <p className="text-xs text-ink-muted">{describePeriodic(e.rule)}</p>
                   </div>
-                  <button className="text-xs text-ink-muted" onClick={() => deleteBusinessEvent(e.id)}>
-                    ×
+                  <button
+                    type="button"
+                    className="rounded-xl p-2 text-ink-muted hover:bg-sand/40"
+                    onClick={() => deleteBusinessEvent(e.id)}
+                    aria-label="Удалить"
+                  >
+                    <Trash2 size={14} />
                   </button>
                 </div>
               )
@@ -797,13 +902,69 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
                   </p>
                 )}
               </button>
-              <button className="text-xs text-ink-muted" onClick={() => deleteTeamEvent(e.id)}>
-                ×
+              <button className="rounded-xl p-2 text-ink-muted hover:bg-sand/40" onClick={() => deleteTeamEvent(e.id)} aria-label="Удалить">
+                <Trash2 size={14} />
               </button>
             </div>
           )
         })}
       </Card>
+
+      <Modal
+        open={habitOpen}
+        onClose={() => setHabitOpen(false)}
+        title="Новая привычка"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Название"
+            value={habitText}
+            onChange={(e) => setHabitText(e.target.value)}
+            placeholder="Например: Полить растения"
+          />
+          <Button
+            className="w-full"
+            onClick={() => {
+              if (!habitText.trim()) return
+              addAreaHabit(areaId, habitText)
+              setHabitText('')
+              setHabitOpen(false)
+            }}
+          >
+            Сохранить
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={goalOpen}
+        onClose={() => setGoalOpen(false)}
+        title={areaGoal ? 'Цель сферы' : 'Новая цель'}
+      >
+        <div className="space-y-4">
+          <Input label="Название" value={goalTitle} onChange={(e) => setGoalTitle(e.target.value)} />
+          <TextArea
+            label="Описание"
+            value={goalDesc}
+            onChange={(e) => setGoalDesc(e.target.value)}
+            rows={2}
+          />
+          <div className="flex flex-wrap gap-2">
+            {HABIT_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setGoalColor(c)}
+                className={`h-7 w-7 rounded-full border-2 ${goalColor === c ? 'border-ink' : 'border-transparent'}`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+          <Button className="w-full" onClick={saveGoal}>
+            Сохранить
+          </Button>
+        </div>
+      </Modal>
 
       <Modal
         open={ruleOpen}

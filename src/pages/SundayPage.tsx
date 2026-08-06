@@ -15,7 +15,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, Pencil, Trash2, Pause, Play } from 'lucide-react'
+import { GripVertical, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import {
   SUNDAY_COLOR,
@@ -38,7 +38,7 @@ import {
   ProgressRing,
   SectionLabel,
 } from '../components/ui'
-import type { SundayRitual, Thought } from '../types'
+import type { SundayRitual } from '../types'
 
 function SortableSundayRitual({
   item,
@@ -47,7 +47,6 @@ function SortableSundayRitual({
   onToggle,
   onEdit,
   onDelete,
-  onToggleEnabled,
 }: {
   item: SundayRitual
   checked: boolean
@@ -55,7 +54,6 @@ function SortableSundayRitual({
   onToggle: () => void
   onEdit: () => void
   onDelete: () => void
-  onToggleEnabled: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -63,32 +61,31 @@ function SortableSundayRitual({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.7 : item.enabled === false ? 0.45 : 1,
+    opacity: isDragging ? 0.75 : 1,
   }
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="group flex items-start gap-3 border-b border-sand/40 px-4 py-4 last:border-0"
+      className={`group flex items-center gap-2.5 rounded-2xl px-3 py-3 sm:gap-3 sm:px-4 ${
+        checked ? 'bg-cream/45' : 'bg-cream/70'
+      }`}
     >
-      <button className="mt-1 touch-none text-stone" {...attributes} {...listeners}>
+      <button
+        type="button"
+        className="shrink-0 touch-none text-stone"
+        aria-label="Перетащить"
+        {...attributes}
+        {...listeners}
+      >
         <GripVertical size={16} />
       </button>
-      {item.enabled !== false && activeDay ? (
-        <Check checked={checked} onChange={onToggle} color={SUNDAY_COLOR} />
-      ) : (
-        <span
-          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px]"
-          style={{ background: `${SUNDAY_COLOR}33` }}
-        >
-          {item.enabled === false ? '—' : '○'}
-        </span>
-      )}
-      <div className="min-w-0 flex-1">
+      <Check checked={checked} onChange={onToggle} color={SUNDAY_COLOR} />
+      <div className={`min-w-0 flex-1 ${!activeDay ? 'opacity-70' : ''}`}>
         <p
-          className={`text-sm font-medium ${
-            checked && activeDay ? 'text-ink-muted line-through' : 'text-ink'
+          className={`break-words text-sm leading-relaxed whitespace-pre-wrap ${
+            checked ? 'text-ink-muted line-through' : 'text-ink'
           }`}
         >
           {item.title}
@@ -96,22 +93,22 @@ function SortableSundayRitual({
         {item.description && (
           <p className="mt-1 text-xs leading-relaxed text-ink-muted">{item.description}</p>
         )}
-        {item.enabled === false && (
-          <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-ink-muted">Отключено</p>
-        )}
       </div>
-      <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+      <div className="flex shrink-0 gap-0.5 self-center">
         <button
-          onClick={onToggleEnabled}
+          type="button"
+          onClick={onEdit}
           className="rounded-xl p-2 text-ink-muted hover:bg-sand/40"
-          title={item.enabled === false ? 'Включить' : 'Отключить'}
+          aria-label="Редактировать"
         >
-          {item.enabled === false ? <Play size={14} /> : <Pause size={14} />}
-        </button>
-        <button onClick={onEdit} className="rounded-xl p-2 text-ink-muted hover:bg-sand/40">
           <Pencil size={14} />
         </button>
-        <button onClick={onDelete} className="rounded-xl p-2 text-ink-muted hover:bg-sand/40">
+        <button
+          type="button"
+          onClick={onDelete}
+          className="rounded-xl p-2 text-ink-muted hover:bg-sand/40"
+          aria-label="Удалить"
+        >
           <Trash2 size={14} />
         </button>
       </div>
@@ -127,29 +124,27 @@ export function SundayPage() {
   const updateSundayRitual = useAppStore((s) => s.updateSundayRitual)
   const deleteSundayRitual = useAppStore((s) => s.deleteSundayRitual)
   const reorderSundayRituals = useAppStore((s) => s.reorderSundayRituals)
-  const addSundayThought = useAppStore((s) => s.addSundayThought)
-  const updateSundayThought = useAppStore((s) => s.updateSundayThought)
-  const deleteSundayThought = useAppStore((s) => s.deleteSundayThought)
-  const reorderSundayThoughts = useAppStore((s) => s.reorderSundayThoughts)
 
   const today = todayKey()
   const activeDay = isSunday(today)
-  const allItems = useMemo(
-    () => [...(data.sundayRitual || [])].sort((a, b) => a.order - b.order),
-    [data.sundayRitual],
-  )
-  const enabled = enabledSundayRituals(data)
   const progress = sundayRitualProgress(data, today)
   const stats = computeSundayStats(data, today)
-  const sundayThoughts = [...(data.sundayThoughts || [])].sort((a, b) => a.order - b.order)
+  const enabled = enabledSundayRituals(data)
+
+  const sortedItems = useMemo(() => {
+    const done = new Set(progress.doneIds)
+    return [...(data.sundayRitual || [])].sort((a, b) => {
+      const aDone = done.has(a.id)
+      const bDone = done.has(b.id)
+      if (aDone !== bDone) return aDone ? 1 : -1
+      return a.order - b.order
+    })
+  }, [data.sundayRitual, progress.doneIds])
 
   const [modal, setModal] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [thoughtModal, setThoughtModal] = useState(false)
-  const [thoughtEditId, setThoughtEditId] = useState<string | null>(null)
-  const [thoughtText, setThoughtText] = useState('')
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -180,24 +175,10 @@ export function SundayPage() {
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIndex = allItems.findIndex((i) => i.id === active.id)
-    const newIndex = allItems.findIndex((i) => i.id === over.id)
-    reorderSundayRituals(arrayMove(allItems, oldIndex, newIndex).map((i) => i.id))
-  }
-
-  const onThoughtDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = sundayThoughts.findIndex((i) => i.id === active.id)
-    const newIndex = sundayThoughts.findIndex((i) => i.id === over.id)
-    reorderSundayThoughts(arrayMove(sundayThoughts, oldIndex, newIndex).map((i) => i.id))
-  }
-
-  const saveThought = () => {
-    if (!thoughtText.trim()) return
-    if (thoughtEditId) updateSundayThought(thoughtEditId, { text: thoughtText.trim() })
-    else addSundayThought(thoughtText.trim())
-    setThoughtModal(false)
+    const oldIndex = sortedItems.findIndex((i) => i.id === active.id)
+    const newIndex = sortedItems.findIndex((i) => i.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    reorderSundayRituals(arrayMove(sortedItems, oldIndex, newIndex).map((i) => i.id))
   }
 
   return (
@@ -209,11 +190,6 @@ export function SundayPage() {
           : nextSundayWaitingLabel(today)
       }
       back={() => setPage('home')}
-      action={
-        <Button onClick={openNew} variant="soft">
-          <Plus size={16} /> Добавить
-        </Button>
-      }
     >
       <div className="relative mb-6 overflow-hidden rounded-3xl border border-white/60 shadow-[var(--shadow-card)]">
         <img
@@ -253,25 +229,31 @@ export function SundayPage() {
         </div>
       </Card>
 
-      <SectionLabel>Ритуалы</SectionLabel>
-      <Card className="mb-8 overflow-hidden" hover={false}>
+      <Card className="mb-8 overflow-hidden p-3 sm:p-4" hover={false}>
+        <div className="mb-3 flex items-center justify-between gap-3 px-1">
+          <h2 className="font-display text-2xl text-ink">Ритуалы</h2>
+          <Button variant="soft" onClick={openNew}>
+            <Plus size={16} />
+          </Button>
+        </div>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={allItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            {allItems.map((item) => (
-              <SortableSundayRitual
-                key={item.id}
-                item={item}
-                checked={progress.doneIds.includes(item.id)}
-                activeDay={activeDay}
-                onToggle={() => toggleSundayRitual(item.id)}
-                onEdit={() => openEdit(item)}
-                onDelete={() => deleteSundayRitual(item.id)}
-                onToggleEnabled={() => updateSundayRitual(item.id, { enabled: item.enabled === false })}
-              />
-            ))}
+          <SortableContext items={sortedItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {sortedItems.map((item) => (
+                <SortableSundayRitual
+                  key={item.id}
+                  item={item}
+                  checked={progress.doneIds.includes(item.id)}
+                  activeDay={activeDay}
+                  onToggle={() => toggleSundayRitual(item.id)}
+                  onEdit={() => openEdit(item)}
+                  onDelete={() => deleteSundayRitual(item.id)}
+                />
+              ))}
+            </div>
           </SortableContext>
         </DndContext>
-        {!allItems.length && (
+        {!sortedItems.length && (
           <p className="p-5 text-sm text-ink-muted">Добавьте первый воскресный ритуал</p>
         )}
       </Card>
@@ -297,44 +279,6 @@ export function SundayPage() {
         </div>
       </Card>
 
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <SectionLabel>Мысли недели</SectionLabel>
-        <Button
-          variant="soft"
-          onClick={() => {
-            setThoughtEditId(null)
-            setThoughtText('')
-            setThoughtModal(true)
-          }}
-        >
-          <Plus size={16} /> Мысль
-        </Button>
-      </div>
-      <Card className="overflow-hidden" hover={false}>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onThoughtDragEnd}>
-          <SortableContext
-            items={sundayThoughts.map((t) => t.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {sundayThoughts.map((t) => (
-              <SundayThoughtRow
-                key={t.id}
-                thought={t}
-                onEdit={() => {
-                  setThoughtEditId(t.id)
-                  setThoughtText(t.text)
-                  setThoughtModal(true)
-                }}
-                onDelete={() => deleteSundayThought(t.id)}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
-        {!sundayThoughts.length && (
-          <p className="p-5 text-sm text-ink-muted">Добавьте мысли для воскресного размышления</p>
-        )}
-      </Card>
-
       <Modal open={modal} onClose={() => setModal(false)} title={editId ? 'Редактировать' : 'Новый ритуал'}>
         <div className="space-y-4">
           <Input
@@ -353,57 +297,6 @@ export function SundayPage() {
           </Button>
         </div>
       </Modal>
-
-      <Modal
-        open={thoughtModal}
-        onClose={() => setThoughtModal(false)}
-        title={thoughtEditId ? 'Редактировать мысль' : 'Мысль недели'}
-      >
-        <div className="space-y-4">
-          <TextArea
-            label="Текст"
-            value={thoughtText}
-            onChange={(e) => setThoughtText(e.target.value)}
-            rows={5}
-            placeholder="Глубокая идея для воскресного размышления..."
-          />
-          <Button onClick={saveThought} className="w-full">
-            Сохранить
-          </Button>
-        </div>
-      </Modal>
     </Page>
-  )
-}
-
-function SundayThoughtRow({
-  thought,
-  onEdit,
-  onDelete,
-}: {
-  thought: Thought
-  onEdit: () => void
-  onDelete: () => void
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: thought.id })
-  const style = { transform: CSS.Transform.toString(transform), transition }
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-start gap-3 border-b border-sand/40 px-4 py-4 last:border-0"
-    >
-      <button className="mt-1 touch-none text-stone" {...attributes} {...listeners}>
-        <GripVertical size={16} />
-      </button>
-      <p className="min-w-0 flex-1 font-display text-lg leading-snug text-ink-soft">{thought.text}</p>
-      <button onClick={onEdit} className="rounded-xl p-2 text-ink-muted hover:bg-sand/40">
-        <Pencil size={14} />
-      </button>
-      <button onClick={onDelete} className="rounded-xl p-2 text-ink-muted hover:bg-sand/40">
-        <Trash2 size={14} />
-      </button>
-    </div>
   )
 }

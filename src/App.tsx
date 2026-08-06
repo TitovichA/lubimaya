@@ -6,26 +6,23 @@ import { useAppStore } from './lib/store'
 import { HomePage } from './pages/HomePage'
 import { RitualPage } from './pages/RitualPage'
 import { SundayPage } from './pages/SundayPage'
-import { HabitsPage, HabitDetailPage } from './pages/HabitsPage'
 import { TasksPage } from './pages/TasksPage'
-import { GoalsPage, GoalDetailPage } from './pages/GoalsPage'
 import { StatsPage } from './pages/StatsPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { DayPage } from './pages/DayPage'
 import { ThoughtsPage } from './pages/ThoughtsPage'
 import { AreaPage } from './pages/AreaPage'
-import { NotesPage, NoteDetailPage } from './pages/NotesPage'
 import { AiPage } from './pages/AiPage'
-import { ProjectsPage, ProjectDetailPage, LifePage } from './pages/ProjectsPage'
+import { LifePage } from './pages/LifePage'
 import {
   MoreHubPage,
   SearchPage,
   TemplatesPage,
   ReviewsPage,
-  RemindersPage,
   SettingsPage,
 } from './pages/SettingsPage'
 import { getSyncMeta } from './lib/sync'
+import { pathToNav, replaceAppHistory, withHistorySync } from './lib/routing'
 
 const SPLASH_MIN_MS = 2200
 
@@ -34,11 +31,63 @@ export default function App() {
   const init = useAppStore((s) => s.init)
   const syncNow = useAppStore((s) => s.syncNow)
   const hydrated = useAppStore((s) => s.hydrated)
+  const setPage = useAppStore((s) => s.setPage)
+  const setSelectedDate = useAppStore((s) => s.setSelectedDate)
   const [splashDone, setSplashDone] = useState(false)
 
   useEffect(() => {
     init()
   }, [init])
+
+  // Синхронизация URL ↔ навигация (кнопка «Назад» в браузере)
+  useEffect(() => {
+    if (!hydrated) return
+
+    const applyFromUrl = () => {
+      const snap = pathToNav(window.location.pathname, window.location.search)
+      withHistorySync(() => {
+        if (snap.selectedDate) setSelectedDate(snap.selectedDate)
+        setPage(snap.page, snap.selectedId)
+      })
+      replaceAppHistory({
+        page: snap.page,
+        selectedId: snap.selectedId,
+        selectedDate: snap.selectedDate || useAppStore.getState().nav.selectedDate,
+      })
+    }
+
+    // Первый заход: если в URL уже путь — открыть его; иначе зафиксировать текущий экран
+    const fromUrl = pathToNav(window.location.pathname, window.location.search)
+    if (fromUrl.page !== 'home' || fromUrl.selectedId || window.location.pathname !== '/') {
+      applyFromUrl()
+    } else {
+      const nav = useAppStore.getState().nav
+      replaceAppHistory({
+        page: nav.page,
+        selectedId: nav.selectedId,
+        selectedDate: nav.selectedDate,
+      })
+    }
+
+    const onPopState = (event: PopStateEvent) => {
+      const state = event.state as { page?: string; selectedId?: string; selectedDate?: string } | null
+      const snap = state?.page
+        ? {
+            page: state.page as typeof fromUrl.page,
+            selectedId: state.selectedId,
+            selectedDate: state.selectedDate,
+          }
+        : pathToNav(window.location.pathname, window.location.search)
+
+      withHistorySync(() => {
+        if (snap.selectedDate) setSelectedDate(snap.selectedDate)
+        setPage(snap.page, snap.selectedId)
+      })
+    }
+
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [hydrated, setPage, setSelectedDate])
 
   useEffect(() => {
     const started = Date.now()
@@ -87,11 +136,7 @@ export default function App() {
             {page === 'morning' && <RitualPage type="morning" />}
             {page === 'evening' && <RitualPage type="evening" />}
             {page === 'sunday' && <SundayPage />}
-            {page === 'habits' && <HabitsPage />}
-            {page === 'habit-detail' && <HabitDetailPage />}
             {page === 'tasks' && <TasksPage />}
-            {page === 'goals' && <GoalsPage />}
-            {page === 'goal-detail' && <GoalDetailPage />}
             {page === 'stats' && <StatsPage />}
             {page === 'calendar' && <CalendarPage />}
             {page === 'day' && <DayPage />}
@@ -101,16 +146,11 @@ export default function App() {
             {page === 'area-business' && <AreaPage areaId="business" />}
             {page === 'area-growth' && <AreaPage areaId="growth" />}
             {page === 'area-family' && <AreaPage areaId="family" />}
-            {page === 'notes' && <NotesPage />}
-            {page === 'note-detail' && <NoteDetailPage />}
             {page === 'ai' && <AiPage />}
-            {page === 'projects' && <ProjectsPage />}
-            {page === 'project-detail' && <ProjectDetailPage />}
             {page === 'life' && <LifePage />}
             {page === 'search' && <SearchPage />}
             {page === 'templates' && <TemplatesPage />}
             {page === 'reviews' && <ReviewsPage />}
-            {page === 'reminders' && <RemindersPage />}
             {page === 'settings' && <SettingsPage />}
           </Shell>
         </motion.div>

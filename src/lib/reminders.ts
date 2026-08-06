@@ -36,7 +36,7 @@ function shortAreaLabel(id: LifeAreaId): string {
 
 /**
  * Напоминания на главной — только из «Календаря событий» каждой сферы.
- * Та же логика «Важно»: сегодня и за 3 дня до начала (разовые и повторы).
+ * Та же логика «Важно»: сегодня и завтра (разовые и повторы).
  * Разовые события после endDate удаляются через pruneExpiredTeamEvents.
  */
 export function collectSmartReminders(data: AppData, date = todayKey()): SmartReminder[] {

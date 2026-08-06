@@ -33,10 +33,7 @@ export function nextSundayWaitingLabel(date = todayKey()): string {
 }
 
 export function enabledSundayRituals(data: AppData): SundayRitual[] {
-  return (data.sundayRitual || [])
-    .filter((r) => r.enabled !== false)
-    .slice()
-    .sort((a, b) => a.order - b.order)
+  return (data.sundayRitual || []).slice().sort((a, b) => a.order - b.order)
 }
 
 export function getSundayDone(data: AppData, date = todayKey()): string[] {

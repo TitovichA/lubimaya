@@ -289,7 +289,7 @@ export function formatDateKey(d: Date) {
   return format(d, 'yyyy-MM-dd')
 }
 
-/** Событие важно сегодня: уже идёт / сегодня / начнётся в ближайшие 3 дня (в т.ч. ближайший повтор) */
+/** Событие важно в этот день или на завтра (без превью за 2–3 дня) */
 export function isTeamEventImportantOn(
   event: TeamEvent | { startDate: string; endDate: string; recurrence?: PeriodicRule },
   date = todayKey(),
@@ -301,7 +301,7 @@ export function isTeamEventImportantOn(
       const daysUntilStart = differenceInCalendarDays(parseISO(next), parseISO(date))
       const active = daysUntilStart === 0
       return {
-        important: active || (daysUntilStart >= 1 && daysUntilStart <= 3),
+        important: active || daysUntilStart === 1,
         daysUntilStart,
         active,
       }
@@ -311,11 +311,12 @@ export function isTeamEventImportantOn(
     const end = parseISO(event.endDate)
     const daysUntilStart = differenceInCalendarDays(start, today)
     const active = isWithinInterval(today, { start, end })
-    const upcomingSoon = daysUntilStart >= 1 && daysUntilStart <= 3
+    const startsToday = daysUntilStart === 0
+    const startsTomorrow = daysUntilStart === 1
     return {
-      important: active || upcomingSoon || daysUntilStart === 0,
+      important: active || startsToday || startsTomorrow,
       daysUntilStart,
-      active: active || daysUntilStart === 0,
+      active: active || startsToday,
     }
   } catch {
     return { important: false, daysUntilStart: 0, active: false }

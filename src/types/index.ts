@@ -128,6 +128,8 @@ export type Goal = {
   reminders: Reminder[]
   projectId?: string
   sphere?: LifeSphere
+  /** Цель сферы жизни — одна плашка на странице области */
+  areaId?: LifeAreaId
 }
 
 export type NoteAttachment = {

@@ -2,10 +2,9 @@ import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { Droplet } from 'lucide-react'
 import { useAppStore } from '../lib/store'
-import { dayProgress, getRitualDone, habitDoneToday } from '../lib/analytics'
+import { dayProgress, getRitualDone } from '../lib/analytics'
 import { LIFE_AREAS, isPeriodicDue, isPeriodDay, getCycleDay, areaMeta, isTeamEventOnDate } from '../lib/areas'
 import { Page, Card, LinearProgress, SectionLabel, ProgressRing, Check } from '../components/ui'
-import { AppIcon } from '../components/AppIcon'
 
 const moodLabels = ['', 'Тяжело', 'Так себе', 'Спокойно', 'Хорошо', 'Отлично']
 
@@ -20,16 +19,8 @@ export function DayPage() {
   const dayLog = data.dayLogs.find((l) => l.date === date)
   const morningDone = getRitualDone(data, 'morning', date)
   const eveningDone = getRitualDone(data, 'evening', date)
-  const habitsDone = data.habits.filter((h) => habitDoneToday(h, date))
-  const habitsMissed = data.habits.filter((h) => !habitDoneToday(h, date))
   const tasks = data.tasks.filter((t) => t.date === date)
   const goalsTouched = data.goals.filter((g) => g.history.some((h) => h.date === date))
-  const notes = data.notes.filter(
-    (n) => n.createdAt.slice(0, 10) === date || n.updatedAt.slice(0, 10) === date,
-  )
-  const photos = notes.flatMap((n) =>
-    n.attachments.filter((a) => a.type.startsWith('image/')).map((a) => ({ ...a, noteTitle: n.title })),
-  )
   const progress = dayProgress(data, date)
   const thoughtId = data.settings.thoughtByDate?.[date]
   const thought = data.thoughts.find((t) => t.id === thoughtId)
@@ -158,23 +149,6 @@ export function DayPage() {
         </div>
       </Card>
 
-      <SectionLabel>🌿 Привычки</SectionLabel>
-      <Card className="mb-6 space-y-2 p-4" hover={false}>
-        {habitsDone.map((h) => (
-          <div key={h.id} className="flex items-center gap-3 text-sm text-ink-soft">
-            <AppIcon name={h.icon} color={h.color} size={16} />
-            <span>✓ {h.title}</span>
-          </div>
-        ))}
-        {habitsMissed.map((h) => (
-          <div key={h.id} className="flex items-center gap-3 text-sm text-ink-muted">
-            <AppIcon name={h.icon} color="#C4BDB3" size={16} />
-            <span>○ {h.title}</span>
-          </div>
-        ))}
-        {!data.habits.length && <p className="text-sm text-ink-muted">Нет привычек</p>}
-      </Card>
-
       <SectionLabel>📝 Задачи</SectionLabel>
       <Card className="mb-6 divide-y divide-sand/50 overflow-hidden" hover={false}>
         {tasks.length ? (
@@ -230,32 +204,12 @@ export function DayPage() {
         </div>
       </Card>
 
-      <SectionLabel>Заметки</SectionLabel>
-      <Card className="mb-6 p-4" hover={false}>
-        {dayLog?.notes && <p className="mb-3 whitespace-pre-wrap text-sm text-ink-soft">{dayLog.notes}</p>}
-        {notes.map((n) => (
-          <button
-            key={n.id}
-            onClick={() => setPage('note-detail', n.id)}
-            className="mb-2 block w-full text-left text-sm text-ink"
-          >
-            {n.title}
-          </button>
-        ))}
-        {!dayLog?.notes && !notes.length && <p className="text-sm text-ink-muted">Нет заметок</p>}
-      </Card>
-
-      {photos.length > 0 && (
+      {dayLog?.notes && (
         <>
-          <SectionLabel>Фотографии</SectionLabel>
-          <div className="mb-6 grid grid-cols-2 gap-3">
-            {photos.map((p) => (
-              <Card key={p.id} className="overflow-hidden p-0" hover={false}>
-                <img src={p.dataUrl} alt={p.name} className="h-40 w-full object-cover" />
-                <p className="px-3 py-2 text-xs text-ink-muted">{p.noteTitle}</p>
-              </Card>
-            ))}
-          </div>
+          <SectionLabel>Заметка дня</SectionLabel>
+          <Card className="mb-6 p-4" hover={false}>
+            <p className="whitespace-pre-wrap text-sm text-ink-soft">{dayLog.notes}</p>
+          </Card>
         </>
       )}
     </Page>

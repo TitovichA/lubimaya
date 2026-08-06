@@ -57,7 +57,7 @@ export function RemindersHomeBlock({ date }: { date?: string }) {
         <Card className="p-5" hover={false}>
           <p className="text-sm text-ink-muted">
             {isToday
-              ? 'Нет событий из календарей сфер на сегодня и ближайшие 3 дня.'
+              ? 'Нет событий из календарей сфер на сегодня и завтра.'
               : 'Нет важных событий календаря на этот день.'}
           </p>
         </Card>

@@ -9,8 +9,6 @@ import {
   dayProgress,
   getRitualDone,
   ritualProgress,
-  habitDoneToday,
-  goalPercent,
   periodAverage,
   generateInsights,
 } from '../lib/analytics'
@@ -62,7 +60,6 @@ export function HomePage() {
   const complete = isChallengeComplete(challenge, today)
   const morningDone = getRitualDone(data, 'morning', viewDate).length
   const eveningDone = getRitualDone(data, 'evening', viewDate).length
-  const habitsDone = data.habits.filter((h) => habitDoneToday(h, viewDate)).length
   const sundayActive = isSunday(viewDate)
   const sundayProg = sundayRitualProgress(data, viewDate)
   const sundayWaiting = nextSundayWaitingLabel(viewDate)
@@ -75,7 +72,7 @@ export function HomePage() {
   )
   const widgets = [
     ...new Set(data.settings.homeWidgets.map((w) => (w === 'quote' ? 'thought' : w))),
-  ].filter((w) => !hidden.has(w))
+  ].filter((w) => !hidden.has(w) && w !== 'habits' && w !== 'goals')
 
   const [challengeOpen, setChallengeOpen] = useState(false)
   const [congratsOpen, setCongratsOpen] = useState(false)
@@ -280,17 +277,6 @@ export function HomePage() {
             delay={0}
           />
         )}
-        {widgets.includes('habits') && (
-          <RitualHomeCard
-            tone="habits"
-            title="Привычки"
-            subtitle="ежедневная опора"
-            count={`${habitsDone} / ${data.habits.length}`}
-            pct={ritualProgress(habitsDone, data.habits.length)}
-            onClick={() => setPage('habits')}
-            delay={0.06}
-          />
-        )}
         {widgets.includes('evening') && (
           <RitualHomeCard
             tone="evening"
@@ -299,7 +285,7 @@ export function HomePage() {
             count={`${eveningDone} / ${data.eveningRitual.length}`}
             pct={ritualProgress(eveningDone, data.eveningRitual.length)}
             onClick={() => setPage('evening')}
-            delay={0.12}
+            delay={0.06}
           />
         )}
         {widgets.includes('sunday') && (
@@ -317,7 +303,7 @@ export function HomePage() {
             pctLabel={sundayActive ? undefined : '—'}
             muted={!sundayActive}
             onClick={() => setPage('sunday')}
-            delay={0.18}
+            delay={0.12}
           />
         )}
       </div>
@@ -361,40 +347,13 @@ export function HomePage() {
         </section>
       )}
 
-      {widgets.includes('goals') && (
-        <section className="mb-8">
-          <SectionLabel>🎯 Цели</SectionLabel>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {data.goals.slice(0, 4).map((g) => {
-              const p = goalPercent(g)
-              return (
-                <Card key={g.id} className="p-5" onClick={() => setPage('goal-detail', g.id)}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="font-display text-xl text-ink">{g.title}</h3>
-                      <p className="mt-1 text-sm text-ink-muted">
-                        {g.currentValue} / {g.targetValue} {g.unit}
-                      </p>
-                    </div>
-                    <ProgressRing value={p} size={72} stroke={6} color={g.color} label={`${p}%`} />
-                  </div>
-                  <div className="mt-4">
-                    <LinearProgress value={p} color={g.color} />
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
       {widgets.includes('stats') && (
         <section className="mb-8">
           <SectionLabel>📈 Общая статистика</SectionLabel>
           <Card className="grid grid-cols-2 gap-4 p-5 md:grid-cols-4" onClick={() => setPage('stats')}>
             <Stat label="Сегодня" value={`${progress}%`} />
             <Stat label="Неделя" value={`${week}%`} />
-            <Stat label="Привычки" value={`${habitsDone}/${data.habits.length}`} />
+            <Stat label="Утро" value={`${morningDone}/${data.morningRitual.length}`} />
             <Stat label="Задачи" value={`${dayTasks.filter((t) => t.done).length}/${dayTasks.length}`} />
           </Card>
         </section>

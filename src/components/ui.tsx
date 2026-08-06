@@ -204,14 +204,48 @@ export function Empty({ title, text }: { title: string; text?: string }) {
 
 export function Input({
   label,
+  onClick,
+  onMouseDown,
+  className = '',
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
+  const isPicker =
+    props.type === 'date' ||
+    props.type === 'datetime-local' ||
+    props.type === 'month' ||
+    props.type === 'time' ||
+    props.type === 'week'
+
+  const openPicker = (el: HTMLInputElement) => {
+    if (!isPicker) return
+    try {
+      el.showPicker?.()
+    } catch {
+      // браузер мог уже открыть пикер или не поддерживает showPicker
+    }
+  }
+
   return (
     <label className="block">
       {label && <span className="mb-1.5 block text-xs text-ink-muted">{label}</span>}
       <input
-        className="w-full rounded-2xl border border-sand/80 bg-cream-soft/80 px-4 py-3 text-sm outline-none transition focus:border-gold/50 focus:ring-2 focus:ring-gold/20"
+        className={`w-full rounded-2xl border border-sand/80 bg-cream-soft/80 px-4 py-3 text-sm outline-none transition focus:border-gold/50 focus:ring-2 focus:ring-gold/20 ${
+          isPicker ? 'cursor-pointer caret-transparent selection:bg-transparent' : ''
+        } ${className}`}
         {...props}
+        onMouseDown={(e) => {
+          onMouseDown?.(e)
+          if (!isPicker) return
+          // не выделяем текст даты — сразу открываем календарь
+          e.preventDefault()
+          const el = e.currentTarget
+          el.focus({ preventScroll: true })
+          openPicker(el)
+        }}
+        onClick={(e) => {
+          onClick?.(e)
+          if (isPicker) openPicker(e.currentTarget)
+        }}
       />
     </label>
   )

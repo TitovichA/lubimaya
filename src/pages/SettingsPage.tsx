@@ -3,11 +3,8 @@ import {
   Sunrise,
   Moon,
   CalendarDays,
-  NotebookPen,
-  LayoutGrid,
   CircleDot,
   Sparkles,
-  Bell,
   Settings,
   Search as SearchIcon,
   FileText,
@@ -20,8 +17,7 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import { searchAll, generateInsights, periodAverage, bestHabitStreaks, dayProgress } from '../lib/analytics'
-import { isPeriodicDue, areaMeta, isTeamEventImportantOn, formatTeamEventHeadline } from '../lib/areas'
-import { todayKey } from '../lib/seed'
+import { areaMeta } from '../lib/areas'
 import { exportJson, importJsonFile } from '../lib/sync'
 import { themeScheduleLabel } from '../lib/theme'
 import type { HomeWidget, PageId } from '../types'
@@ -41,13 +37,10 @@ const moreLinks: { id: PageId; label: string; icon: typeof Sunrise; desc: string
   { id: 'sunday', label: 'Воскресенье', icon: Flower2, desc: 'День восстановления' },
   { id: 'calendar', label: 'Календарь', icon: CalendarDays, desc: 'Любой день' },
   { id: 'thoughts', label: 'Мысли', icon: Sparkles, desc: 'Коллекция мыслей дня' },
-  { id: 'notes', label: 'Заметки', icon: NotebookPen, desc: 'Мысли и файлы' },
-  { id: 'projects', label: 'Проекты', icon: LayoutGrid, desc: 'Жизненные направления' },
   { id: 'life', label: 'Панель развития', icon: CircleDot, desc: 'Индекс по сферам' },
   { id: 'ai', label: 'ИИ-помощник', icon: Sparkles, desc: 'Анализ и планы' },
   { id: 'templates', label: 'Шаблоны дней', icon: Layers, desc: 'Рабочий, выходной...' },
   { id: 'reviews', label: 'Обзоры', icon: FileText, desc: 'Неделя и месяц' },
-  { id: 'reminders', label: 'Напоминания', icon: Bell, desc: 'Все оповещения' },
   { id: 'search', label: 'Поиск', icon: SearchIcon, desc: 'По всему приложению' },
   { id: 'settings', label: 'Настройки', icon: Settings, desc: 'Синхронизация и вид' },
 ]
@@ -101,17 +94,22 @@ export function SearchPage() {
   const results = searchAll(data, q)
 
   const go = (type: string, id: string) => {
-    if (type === 'habit') setPage('habit-detail', id)
-    else if (type === 'goal') setPage('goal-detail', id)
-    else if (type === 'note') setPage('note-detail', id)
-    else if (type === 'project') setPage('project-detail', id)
+    if (type === 'goal') {
+      const goal = data.goals.find((g) => g.id === id)
+      if (goal?.areaId) setPage(areaMeta(goal.areaId).pageId)
+      else setPage('home')
+    }
     else if (type === 'task') setPage('tasks')
     else if (type === 'morning') setPage('morning')
     else if (type === 'evening') setPage('evening')
+    else if (type === 'area-habit') {
+      const habit = data.areaHabits?.find((h) => h.id === id)
+      if (habit) setPage(areaMeta(habit.areaId).pageId)
+    }
   }
 
   return (
-    <Page title="Поиск" subtitle="Мгновенный поиск привычек, целей, заметок и задач.">
+    <Page title="Поиск" subtitle="Мгновенный поиск целей, заметок и задач.">
       <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -223,58 +221,6 @@ export function ReviewsPage() {
   )
 }
 
-export function RemindersPage() {
-  const data = useAppStore((s) => s.data)
-  const items: { time: string; label: string; source: string }[] = []
-  data.habits.forEach((h) =>
-    h.reminders.filter((r) => r.enabled).forEach((r) => items.push({ time: r.time, label: h.title, source: 'Привычка' })),
-  )
-  data.tasks.forEach((t) =>
-    t.reminders.filter((r) => r.enabled).forEach((r) => items.push({ time: r.time, label: t.title, source: 'Задача' })),
-  )
-  data.goals.forEach((g) =>
-    g.reminders.filter((r) => r.enabled).forEach((r) => items.push({ time: r.time, label: g.title, source: 'Цель' })),
-  )
-
-  const today = todayKey()
-  ;(data.businessEvents || [])
-    .filter((e) => isPeriodicDue(e.rule) && !e.completions[today])
-    .forEach((e) => items.push({ time: '10:00', label: e.title, source: '💼 Бизнес' }))
-  ;(data.teamEvents || []).forEach((e) => {
-    if (e.recurrence?.type === 'daily') return
-    const status = isTeamEventImportantOn(e, today)
-    if (!status.important) return
-    items.push({
-      time: '08:30',
-      label: formatTeamEventHeadline(e, status),
-      source: `${areaMeta(e.areaId || 'business').emoji} Календарь`,
-    })
-  })
-
-  items.sort((a, b) => a.time.localeCompare(b.time))
-
-  return (
-    <Page title="Напоминания" subtitle="Все оповещения по привычкам, задачам, целям и сферам.">
-      <Card className="divide-y divide-sand/50 overflow-hidden" hover={false}>
-        {items.map((i, idx) => (
-          <div key={idx} className="flex items-center gap-4 px-5 py-4">
-            <span className="font-mono text-sm text-gold-deep">{i.time}</span>
-            <div>
-              <p className="text-sm text-ink">{i.label}</p>
-              <p className="text-xs text-ink-muted">{i.source}</p>
-            </div>
-          </div>
-        ))}
-        {!items.length && (
-          <div className="p-6">
-            <Empty title="Нет активных напоминаний" />
-          </div>
-        )}
-      </Card>
-    </Page>
-  )
-}
-
 const allWidgets: { id: HomeWidget; label: string }[] = [
   { id: 'greeting', label: 'Приветствие' },
   { id: 'thought', label: 'Мысль дня' },
@@ -282,11 +228,9 @@ const allWidgets: { id: HomeWidget; label: string }[] = [
   { id: 'areas', label: 'Панель развития жизни' },
   { id: 'todayDue', label: 'Напоминания' },
   { id: 'morning', label: 'Утро' },
-  { id: 'habits', label: 'Привычки' },
   { id: 'evening', label: 'Вечер' },
   { id: 'sunday', label: 'Воскресенье' },
   { id: 'tasks', label: 'Задачи' },
-  { id: 'goals', label: 'Цели' },
   { id: 'stats', label: 'Статистика' },
   { id: 'life', label: 'Колесо баланса' },
   { id: 'ai', label: 'ИИ' },

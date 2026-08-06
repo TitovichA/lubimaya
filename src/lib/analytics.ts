@@ -1,5 +1,5 @@
 import { eachDayOfInterval, format, subDays, getDay, parseISO } from 'date-fns'
-import type { AppData, Habit, Goal } from '../types'
+import type { AppData, AreaHabit, Habit, Goal } from '../types'
 import { todayKey } from './seed'
 import { isPeriodDay, isPeriodicDue } from './areas'
 
@@ -56,8 +56,6 @@ export function dayProgress(data: AppData, date = todayKey()) {
   const eveningDone = getRitualDone(data, 'evening', date).length
   const morningTotal = data.morningRitual.length
   const eveningTotal = data.eveningRitual.length
-  const habitsDone = data.habits.filter((h) => habitDoneToday(h, date)).length
-  const habitsTotal = data.habits.length
   const tasks = data.tasks.filter((t) => t.date === date)
   const tasksDone = tasks.filter((t) => t.done).length
   const tasksTotal = tasks.length
@@ -76,7 +74,6 @@ export function dayProgress(data: AppData, date = todayKey()) {
   const parts = [
     morningTotal ? morningDone / morningTotal : null,
     eveningTotal ? eveningDone / eveningTotal : null,
-    habitsTotal ? habitsDone / habitsTotal : null,
     tasksTotal ? tasksDone / tasksTotal : null,
     areaHabitsTotal ? areaHabitsDone / areaHabitsTotal : null,
     bizTotal ? bizDone / bizTotal : null,
@@ -103,9 +100,34 @@ export function activityHeatmap(data: AppData, days = 119) {
   })
 }
 
+function areaHabitStreak(habit: AreaHabit, upTo = new Date()) {
+  let streak = 0
+  let d = upTo
+  for (let i = 0; i < 400; i++) {
+    const key = format(d, 'yyyy-MM-dd')
+    if (habit.completions[key]) {
+      streak++
+      d = subDays(d, 1)
+    } else if (key === todayKey(upTo) && streak === 0) {
+      d = subDays(d, 1)
+    } else {
+      break
+    }
+  }
+  return streak
+}
+
+function areaHabitCompletionRate(habit: AreaHabit, days = 30) {
+  const end = new Date()
+  const start = subDays(end, days - 1)
+  const range = eachDayOfInterval({ start, end })
+  const done = range.filter((d) => habit.completions[format(d, 'yyyy-MM-dd')]).length
+  return Math.round((done / range.length) * 100)
+}
+
 export function bestHabitStreaks(data: AppData) {
-  return [...data.habits]
-    .map((h) => ({ habit: h, streak: habitStreak(h) }))
+  return [...(data.areaHabits || [])]
+    .map((h) => ({ habit: h, streak: areaHabitStreak(h) }))
     .sort((a, b) => b.streak - a.streak)
 }
 
@@ -148,15 +170,15 @@ export function generateInsights(data: AppData): string[] {
     insights.push(`Лучшая серия сейчас — «${top.habit.title}»: ${top.streak} дн.`)
   }
 
-  const lowHabits = data.habits
-    .map((h) => ({ h, rate: habitCompletionRate(h, 14) }))
+  const lowHabits = (data.areaHabits || [])
+    .map((h) => ({ h, rate: areaHabitCompletionRate(h, 14) }))
     .filter((x) => x.rate < 40)
     .slice(0, 2)
   lowHabits.forEach((x) => {
     insights.push(`«${x.h.title}» выполняется редко (${x.rate}%). Попробуйте уменьшить цель или привязать к ритуалу.`)
   })
 
-  const sport = data.habits.find((h) => h.id === 'h-sport' || /тренир|спорт/i.test(h.title))
+  const sport = (data.areaHabits || []).find((h) => /тренир|спорт/i.test(h.title))
   if (sport) {
     insights.push('Лучшее время тренировок по вашим напоминаниям — утро около 8:00.')
   }
@@ -175,11 +197,6 @@ export function searchAll(data: AppData, query: string) {
   if (!q) return []
   const results: { type: string; id: string; title: string; subtitle?: string }[] = []
 
-  data.habits.forEach((h) => {
-    if (h.title.toLowerCase().includes(q) || h.description?.toLowerCase().includes(q)) {
-      results.push({ type: 'habit', id: h.id, title: h.title, subtitle: h.category })
-    }
-  })
   data.goals.forEach((g) => {
     if (g.title.toLowerCase().includes(q) || g.description?.toLowerCase().includes(q)) {
       results.push({ type: 'goal', id: g.id, title: g.title, subtitle: `${goalPercent(g)}%` })
@@ -190,14 +207,9 @@ export function searchAll(data: AppData, query: string) {
       results.push({ type: 'task', id: t.id, title: t.title, subtitle: t.category })
     }
   })
-  data.notes.forEach((n) => {
-    if (n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q)) {
-      results.push({ type: 'note', id: n.id, title: n.title, subtitle: n.tags.join(', ') })
-    }
-  })
-  data.projects.forEach((p) => {
-    if (p.title.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q)) {
-      results.push({ type: 'project', id: p.id, title: p.title, subtitle: p.sphere })
+  ;(data.areaHabits || []).forEach((h) => {
+    if (h.title.toLowerCase().includes(q) || h.description?.toLowerCase().includes(q)) {
+      results.push({ type: 'area-habit', id: h.id, title: h.title, subtitle: h.areaId })
     }
   })
   data.morningRitual.forEach((r) => {
@@ -221,13 +233,13 @@ export function aiReply(data: AppData, message: string): string {
   const insights = generateInsights(data)
 
   if (/план|расписан|свободн/.test(lower)) {
-    const openHabits = data.habits.filter((h) => !habitDoneToday(h)).slice(0, 4)
+    const openHabits = (data.areaHabits || []).filter((h) => !h.completions[todayKey()]).slice(0, 4)
     const openTasks = data.tasks.filter((t) => t.date === todayKey() && !t.done).slice(0, 4)
     return [
       'Предлагаю мягкое расписание на сегодня:',
       '',
       '• 08:00–09:00 — утренний ритуал',
-      openHabits.length ? `• 09:30 — привычки: ${openHabits.map((h) => h.title).join(', ')}` : null,
+      openHabits.length ? `• 09:30 — привычки сфер: ${openHabits.map((h) => h.title).join(', ')}` : null,
       openTasks.length ? `• 11:00 — задачи: ${openTasks.map((t) => t.title).join(', ')}` : null,
       '• 18:00 — движение или тренировка',
       '• 21:00 — вечерний ритуал и сон',
