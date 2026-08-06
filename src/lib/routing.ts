@@ -49,7 +49,7 @@ export function withHistorySync(fn: () => void) {
 }
 
 export function navToPath(nav: NavSnapshot): string {
-  const { page, selectedId, selectedDate } = nav
+  const { page, selectedDate } = nav
   const params = new URLSearchParams()
 
   if (AREA_PAGES.includes(page)) {
