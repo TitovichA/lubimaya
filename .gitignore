@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local deploy artifacts / secrets
+lubimaya-beget.zip
+.env
+.env.*
