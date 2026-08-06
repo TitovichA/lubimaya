@@ -164,9 +164,17 @@ export type DayLog = {
   templateId?: string
 }
 
+export type Thought = {
+  id: string
+  text: string
+  favorite: boolean
+  order: number
+}
+
 export type HomeWidget =
   | 'greeting'
-  | 'quote'
+  | 'thought'
+  | 'quote' // legacy alias
   | 'progress'
   | 'morning'
   | 'habits'
@@ -190,6 +198,8 @@ export type UserSettings = {
   lastSyncAt?: string
   notificationsEnabled: boolean
   weekStartsOn: 0 | 1
+  thoughtByDate: Record<string, string>
+  thoughtCycleShown: string[]
 }
 
 export type AppData = {
@@ -206,6 +216,7 @@ export type AppData = {
   projects: Project[]
   dayTemplates: DayTemplate[]
   dayLogs: DayLog[]
+  thoughts: Thought[]
   lifeBalance: LifeBalance
   updatedAt: string
 }
@@ -222,6 +233,7 @@ export type PageId =
   | 'goal-detail'
   | 'stats'
   | 'calendar'
+  | 'day'
   | 'notes'
   | 'note-detail'
   | 'projects'
@@ -233,3 +245,4 @@ export type PageId =
   | 'search'
   | 'settings'
   | 'reminders'
+  | 'thoughts'

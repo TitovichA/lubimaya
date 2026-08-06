@@ -30,6 +30,7 @@ const more: { id: PageId; label: string; icon: typeof Home }[] = [
   { id: 'morning', label: 'Утро', icon: Sunrise },
   { id: 'evening', label: 'Вечер', icon: Moon },
   { id: 'calendar', label: 'Календарь', icon: CalendarDays },
+  { id: 'thoughts', label: 'Мысли', icon: Sparkles },
   { id: 'notes', label: 'Заметки', icon: NotebookPen },
   { id: 'projects', label: 'Проекты', icon: LayoutGrid },
   { id: 'life', label: 'Жизнь', icon: CircleDot },
@@ -61,8 +62,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <div className="mx-auto flex min-h-dvh max-w-7xl">
         <aside className="safe-top sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-sand/60 px-4 py-6 lg:flex">
           <div className="mb-10 px-3">
-            <p className="font-display text-3xl tracking-tight text-ink">Любимая</p>
-            <p className="mt-1 text-xs tracking-wide text-ink-muted">система жизни</p>
+            <p className="font-display text-2xl tracking-tight text-ink">Моя 100-дневка</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-muted">каждый день ближе к лучшей версии</p>
           </div>
           <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
             {[...nav, ...more].map((item) => {

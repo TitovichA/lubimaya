@@ -13,8 +13,10 @@ import type {
   Reminder,
   HomeWidget,
   LifeBalance,
+  Thought,
 } from '../types'
 import { createSeedData, todayKey } from './seed'
+import { createThoughtsSeed, pickThoughtForDate } from './thoughts'
 import { loadLocal, saveLocal, getSyncMeta, setSyncMeta, pushCloud, pullCloud, mergeData, createSyncCode, deviceId } from './sync'
 
 type NavState = {
@@ -75,11 +77,38 @@ type Store = {
   setHomeWidgets: (widgets: HomeWidget[]) => void
   // day log
   setDayNote: (date: string, notes: string) => void
+  setDayMood: (date: string, mood: number) => void
+  // thoughts
+  ensureThoughtOfDay: (date?: string) => Thought | null
+  addThought: (text: string) => void
+  updateThought: (id: string, patch: Partial<Thought>) => void
+  deleteThought: (id: string) => void
+  reorderThoughts: (ids: string[]) => void
   // sync
   enableSync: () => Promise<string>
   joinSync: (blobId: string) => Promise<void>
   syncNow: () => Promise<void>
   replaceData: (data: AppData) => void
+}
+
+function migrateData(raw: AppData): AppData {
+  const seed = createSeedData()
+  const widgets = (raw.settings?.homeWidgets || seed.settings.homeWidgets).map((w) =>
+    w === 'quote' ? 'thought' : w,
+  ) as AppData['settings']['homeWidgets']
+  return {
+    ...seed,
+    ...raw,
+    version: Math.max(raw.version || 1, 2),
+    settings: {
+      ...seed.settings,
+      ...raw.settings,
+      homeWidgets: widgets,
+      thoughtByDate: raw.settings?.thoughtByDate || {},
+      thoughtCycleShown: raw.settings?.thoughtCycleShown || [],
+    },
+    thoughts: raw.thoughts?.length ? raw.thoughts : createThoughtsSeed(),
+  }
 }
 
 function bumpLinkedGoals(data: AppData, habitId: string, date: string): AppData {
@@ -116,7 +145,7 @@ export const useAppStore = create<Store>((set, get) => ({
 
   init: () => {
     const local = loadLocal()
-    if (local) set({ data: local, hydrated: true })
+    if (local) set({ data: migrateData(local), hydrated: true })
     else {
       const seed = createSeedData()
       saveLocal(seed)
@@ -472,6 +501,81 @@ export const useAppStore = create<Store>((set, get) => ({
     if (idx >= 0) logs[idx] = { ...logs[idx], notes }
     else logs.push({ date, notes })
     set({ data: { ...get().data, dayLogs: logs } })
+    get().persist()
+  },
+
+  setDayMood: (date, mood) => {
+    const logs = [...get().data.dayLogs]
+    const idx = logs.findIndex((l) => l.date === date)
+    if (idx >= 0) logs[idx] = { ...logs[idx], mood }
+    else logs.push({ date, mood })
+    set({ data: { ...get().data, dayLogs: logs } })
+    get().persist()
+  },
+
+  ensureThoughtOfDay: (date = todayKey()) => {
+    const data = get().data
+    const result = pickThoughtForDate(
+      data.thoughts,
+      data.settings.thoughtByDate || {},
+      data.settings.thoughtCycleShown || [],
+      date,
+    )
+    if (
+      result.thought &&
+      (data.settings.thoughtByDate?.[date] !== result.thought.id ||
+        JSON.stringify(data.settings.thoughtCycleShown) !== JSON.stringify(result.cycleShown))
+    ) {
+      set({
+        data: {
+          ...data,
+          settings: {
+            ...data.settings,
+            thoughtByDate: result.thoughtByDate,
+            thoughtCycleShown: result.cycleShown,
+          },
+        },
+      })
+      get().persist()
+    }
+    return result.thought
+  },
+
+  addThought: (text) => {
+    const thoughts = get().data.thoughts
+    const next: Thought = {
+      id: uuid(),
+      text: text.trim(),
+      favorite: false,
+      order: thoughts.length,
+    }
+    set({ data: { ...get().data, thoughts: [...thoughts, next] } })
+    get().persist()
+  },
+
+  updateThought: (id, patch) => {
+    set({
+      data: {
+        ...get().data,
+        thoughts: get().data.thoughts.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      },
+    })
+    get().persist()
+  },
+
+  deleteThought: (id) => {
+    set({ data: { ...get().data, thoughts: get().data.thoughts.filter((t) => t.id !== id) } })
+    get().persist()
+  },
+
+  reorderThoughts: (ids) => {
+    const map = new Map(get().data.thoughts.map((t) => [t.id, t]))
+    set({
+      data: {
+        ...get().data,
+        thoughts: ids.map((id, order) => ({ ...map.get(id)!, order })),
+      },
+    })
     get().persist()
   },
 

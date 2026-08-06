@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useAppStore } from '../lib/store'
-import { greeting, formatRuDate, formatRuWeekday, getQuoteOfDay, todayKey } from '../lib/seed'
+import { greeting, formatRuDate, formatRuWeekday, todayKey } from '../lib/seed'
 import {
   dayProgress,
   getRitualDone,
@@ -12,6 +12,7 @@ import {
 } from '../lib/analytics'
 import { Card, ProgressRing, LinearProgress, SectionLabel } from '../components/ui'
 import { AppIcon } from '../components/AppIcon'
+import { ThoughtOfDayCard } from './ThoughtsPage'
 
 const fade = {
   initial: { opacity: 0, y: 12 },
@@ -21,7 +22,6 @@ const fade = {
 export function HomePage() {
   const data = useAppStore((s) => s.data)
   const setPage = useAppStore((s) => s.setPage)
-  const quote = getQuoteOfDay()
   const progress = dayProgress(data)
   const morningDone = getRitualDone(data, 'morning').length
   const eveningDone = getRitualDone(data, 'evening').length
@@ -29,30 +29,32 @@ export function HomePage() {
   const todayTasks = data.tasks.filter((t) => t.date === todayKey()).sort((a, b) => a.order - b.order)
   const week = periodAverage(data, 7)
   const insights = generateInsights(data)
-  const widgets = data.settings.homeWidgets.filter((w) => !data.settings.hiddenWidgets.includes(w))
+  const hidden = new Set(
+    data.settings.hiddenWidgets.map((w) => (w === 'quote' ? 'thought' : w)),
+  )
+  const widgets = [
+    ...new Set(data.settings.homeWidgets.map((w) => (w === 'quote' ? 'thought' : w))),
+  ].filter((w) => !hidden.has(w))
 
   return (
     <div className="mx-auto max-w-3xl px-4 pb-28 pt-8 md:max-w-5xl md:px-8 md:pb-12 lg:max-w-6xl">
       {widgets.includes('greeting') && (
         <motion.header {...fade} transition={{ delay: 0.05 }} className="mb-8">
-          <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">{formatRuWeekday()}</p>
-          <h1 className="mt-2 font-display text-4xl font-medium tracking-tight text-ink md:text-5xl">
+          <p className="font-display text-3xl tracking-tight text-ink md:text-4xl">Моя 100-дневка</p>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-muted md:text-base">
+            Каждый день делает меня ближе к моей лучшей версии.
+          </p>
+          <p className="mt-5 text-xs uppercase tracking-[0.2em] text-ink-muted">{formatRuWeekday()}</p>
+          <h1 className="mt-2 font-display text-3xl font-medium tracking-tight text-ink-soft md:text-4xl">
             {greeting(data.settings.name)}
           </h1>
           <p className="mt-2 text-ink-muted">{formatRuDate()}</p>
         </motion.header>
       )}
 
-      {widgets.includes('quote') && (
+      {(widgets.includes('thought')) && (
         <motion.div {...fade} transition={{ delay: 0.1 }} className="mb-8">
-          <Card className="overflow-hidden p-6 md:p-8" hover={false}>
-            <div className="absolute inset-0 -z-10 bg-gradient-to-br from-sky/30 via-transparent to-gold-light/20" />
-            <p className="text-[11px] uppercase tracking-[0.18em] text-gold-deep">Цитата дня</p>
-            <blockquote className="mt-4 font-display text-2xl leading-snug text-ink-soft md:text-3xl">
-              «{quote.text}»
-            </blockquote>
-            <p className="mt-4 text-sm text-ink-muted">— {quote.author}</p>
-          </Card>
+          <ThoughtOfDayCard />
         </motion.div>
       )}
 

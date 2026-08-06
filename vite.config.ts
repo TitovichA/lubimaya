@@ -12,9 +12,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icons/*.png'],
       manifest: {
-        name: 'Любимая — система жизни',
-        short_name: 'Любимая',
-        description: 'Персональная система управления жизнью, привычками и целями',
+        name: 'Моя 100-дневка',
+        short_name: '100-дневка',
+        description: 'Каждый день делает меня ближе к моей лучшей версии.',
         theme_color: '#F7F3EC',
         background_color: '#F7F3EC',
         display: 'standalone',

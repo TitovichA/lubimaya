@@ -11,33 +11,37 @@ import {
 } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '../lib/store'
-import { dayProgress, getRitualDone, habitDoneToday } from '../lib/analytics'
+import { dayProgress } from '../lib/analytics'
 import { todayKey } from '../lib/seed'
-import { Page, Card, Button, TextArea } from '../components/ui'
+import { Page, Card, Button } from '../components/ui'
 
 export function CalendarPage() {
   const data = useAppStore((s) => s.data)
   const selectedDate = useAppStore((s) => s.nav.selectedDate)
   const setSelectedDate = useAppStore((s) => s.setSelectedDate)
-  const setDayNote = useAppStore((s) => s.setDayNote)
-  const [cursor, setCursor] = useState(parseISO(selectedDate))
+  const setPage = useAppStore((s) => s.setPage)
+  const [cursor, setCursor] = useState(() => parseISO(todayKey()))
+
+  useEffect(() => {
+    const today = todayKey()
+    setSelectedDate(today)
+    setCursor(parseISO(today))
+  }, [setSelectedDate])
 
   const start = startOfMonth(cursor)
   const end = endOfMonth(cursor)
   const days = eachDayOfInterval({ start, end })
   const pad = (getDay(start) + 6) % 7
 
-  const dayLog = data.dayLogs.find((l) => l.date === selectedDate)
-  const morning = getRitualDone(data, 'morning', selectedDate)
-  const evening = getRitualDone(data, 'evening', selectedDate)
-  const habits = data.habits.filter((h) => habitDoneToday(h, selectedDate))
-  const tasks = data.tasks.filter((t) => t.date === selectedDate)
-  const progress = dayProgress(data, selectedDate)
+  const openDay = (key: string) => {
+    setSelectedDate(key)
+    setPage('day')
+  }
 
   return (
-    <Page title="Календарь" subtitle="Откройте любой день и посмотрите ритм жизни.">
+    <Page title="Календарь" subtitle="Откройте любой день — полная картина ритуалов, привычек и прогресса.">
       <Card className="mb-6 p-5" hover={false}>
         <div className="mb-4 flex items-center justify-between">
           <Button variant="ghost" onClick={() => setCursor(subMonths(cursor, 1))}>
@@ -55,28 +59,36 @@ export function CalendarPage() {
             <div key={d}>{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-1.5">
           {Array.from({ length: pad }).map((_, i) => (
             <div key={`pad-${i}`} />
           ))}
           {days.map((d) => {
             const key = format(d, 'yyyy-MM-dd')
             const val = dayProgress(data, key)
-            const selected = key === selectedDate
             const isToday = key === todayKey()
+            const selected = key === selectedDate && !isToday
             return (
               <button
                 key={key}
-                onClick={() => setSelectedDate(key)}
+                onClick={() => openDay(key)}
                 className={`aspect-square rounded-2xl p-1 text-sm transition ${
-                  selected ? 'bg-ink text-cream' : isToday ? 'bg-gold-light/60 text-ink' : 'hover:bg-sand/50'
+                  isToday
+                    ? 'bg-sky shadow-soft ring-1 ring-[#C4A574]/70 text-ink'
+                    : selected
+                      ? 'bg-ink text-cream'
+                      : 'hover:bg-sand/50'
                 } ${!isSameMonth(d, cursor) ? 'opacity-30' : ''}`}
               >
-                <div>{format(d, 'd')}</div>
+                <div className="font-medium">{format(d, 'd')}</div>
                 <div
                   className="mx-auto mt-1 h-1 w-1 rounded-full"
                   style={{
-                    background: selected ? '#E8D5B5' : `rgba(196,165,116,${0.2 + val / 100})`,
+                    background: isToday
+                      ? '#C4A574'
+                      : selected
+                        ? '#E8D5B5'
+                        : `rgba(196,165,116,${0.15 + val / 120})`,
                   }}
                 />
               </button>
@@ -85,62 +97,12 @@ export function CalendarPage() {
         </div>
       </Card>
 
-      <Card className="mb-4 p-5" hover={false}>
-        <p className="text-[11px] uppercase tracking-[0.16em] text-ink-muted">
-          {format(parseISO(selectedDate), 'd MMMM yyyy', { locale: ru })}
+      <Card className="p-5" onClick={() => openDay(todayKey())}>
+        <p className="text-[11px] uppercase tracking-[0.16em] text-ink-muted">Сегодня</p>
+        <p className="mt-2 font-display text-2xl text-ink">
+          {format(parseISO(todayKey()), 'd MMMM', { locale: ru })}
         </p>
-        <p className="mt-2 font-display text-3xl text-ink">{progress}%</p>
-        <p className="mt-1 text-sm text-ink-muted">прогресс дня</p>
-      </Card>
-
-      <div className="mb-4 grid gap-4 sm:grid-cols-2">
-        <Card className="p-5" hover={false}>
-          <p className="text-[11px] uppercase tracking-[0.16em] text-ink-muted">Утро</p>
-          <p className="mt-2 text-sm">
-            {morning.length}/{data.morningRitual.length}
-          </p>
-        </Card>
-        <Card className="p-5" hover={false}>
-          <p className="text-[11px] uppercase tracking-[0.16em] text-ink-muted">Вечер</p>
-          <p className="mt-2 text-sm">
-            {evening.length}/{data.eveningRitual.length}
-          </p>
-        </Card>
-      </div>
-
-      <Card className="mb-4 p-5" hover={false}>
-        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-ink-muted">Привычки</p>
-        {habits.length ? (
-          habits.map((h) => (
-            <p key={h.id} className="text-sm text-ink-soft">
-              ✓ {h.title}
-            </p>
-          ))
-        ) : (
-          <p className="text-sm text-ink-muted">Нет отмеченных привычек</p>
-        )}
-      </Card>
-
-      <Card className="mb-4 p-5" hover={false}>
-        <p className="mb-2 text-[11px] uppercase tracking-[0.16em] text-ink-muted">Задачи</p>
-        {tasks.length ? (
-          tasks.map((t) => (
-            <p key={t.id} className={`text-sm ${t.done ? 'text-ink-muted line-through' : 'text-ink-soft'}`}>
-              {t.done ? '✓' : '○'} {t.title}
-            </p>
-          ))
-        ) : (
-          <p className="text-sm text-ink-muted">Нет задач</p>
-        )}
-      </Card>
-
-      <Card className="p-5" hover={false}>
-        <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-ink-muted">Заметка дня</p>
-        <TextArea
-          value={dayLog?.notes || ''}
-          onChange={(e) => setDayNote(selectedDate, e.target.value)}
-          placeholder="Мысли, наблюдения, благодарности..."
-        />
+        <p className="mt-1 text-sm text-ink-muted">Открыть полную картину дня →</p>
       </Card>
     </Page>
   )

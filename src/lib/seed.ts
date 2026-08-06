@@ -1,28 +1,7 @@
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import type { AppData, RitualItem } from '../types'
-
-export const QUOTES = [
-  { text: 'Дисциплина — это мост между целями и достижениями.', author: 'Джим Рон' },
-  { text: 'Маленькие шаги каждый день складываются в большие перемены.', author: 'Неизвестный' },
-  { text: 'Спокойствие — это высшая форма силы.', author: 'Лао-цзы' },
-  { text: 'То, что мы делаем регулярно, определяет, кем мы становимся.', author: 'Аристотель' },
-  { text: 'Красота порядка освобождает ум для творчества.', author: 'Неизвестный' },
-  { text: 'Утро задаёт тон всему дню.', author: 'Неизвестный' },
-  { text: 'Прогресс, а не совершенство.', author: 'Неизвестный' },
-  { text: 'Забота о себе — не эгоизм, а мудрость.', author: 'Неизвестный' },
-  { text: 'Тишина внутри создаёт ясность снаружи.', author: 'Неизвестный' },
-  { text: 'Каждый день — чистый холст.', author: 'Неизвестный' },
-  { text: 'Привычки формируют судьбу тихими руками.', author: 'Неизвестный' },
-  { text: 'Сила растёт в постоянстве, а не в порывах.', author: 'Неизвестный' },
-]
-
-export function getQuoteOfDay(date = new Date()) {
-  const dayOfYear = Math.floor(
-    (date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000,
-  )
-  return QUOTES[dayOfYear % QUOTES.length]
-}
+import { createThoughtsSeed } from './thoughts'
 
 export function todayKey(date = new Date()) {
   return format(date, 'yyyy-MM-dd')
@@ -38,7 +17,7 @@ export function formatRuWeekday(date = new Date()) {
 
 export function greeting(name: string, date = new Date()) {
   const h = date.getHours()
-  const n = name || 'любимая'
+  const n = name || 'ты'
   if (h < 5) return `Доброй ночи, ${n}`
   if (h < 12) return `Доброе утро, ${n}`
   if (h < 18) return `Добрый день, ${n}`
@@ -124,11 +103,11 @@ export function createSeedData(): AppData {
     version: 1,
     updatedAt: now,
     settings: {
-      name: 'Любимая',
+      name: '',
       greetingStyle: 'warm',
       homeWidgets: [
         'greeting',
-        'quote',
+        'thought',
         'progress',
         'morning',
         'habits',
@@ -142,6 +121,8 @@ export function createSeedData(): AppData {
       themeAccent: '#C4A574',
       notificationsEnabled: true,
       weekStartsOn: 1,
+      thoughtByDate: {},
+      thoughtCycleShown: [],
     },
     morningRitual: withIds(morningDefaults, 'm'),
     eveningRitual: withIds(eveningDefaults, 'e'),
@@ -474,6 +455,7 @@ export function createSeedData(): AppData {
       },
     ],
     dayLogs: [],
+    thoughts: createThoughtsSeed(),
     lifeBalance: {
       здоровье: 72,
       отношения: 65,

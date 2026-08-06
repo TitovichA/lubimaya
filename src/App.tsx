@@ -8,6 +8,8 @@ import { TasksPage } from './pages/TasksPage'
 import { GoalsPage, GoalDetailPage } from './pages/GoalsPage'
 import { StatsPage } from './pages/StatsPage'
 import { CalendarPage } from './pages/CalendarPage'
+import { DayPage } from './pages/DayPage'
+import { ThoughtsPage } from './pages/ThoughtsPage'
 import { NotesPage, NoteDetailPage } from './pages/NotesPage'
 import { AiPage } from './pages/AiPage'
 import { ProjectsPage, ProjectDetailPage, LifePage } from './pages/ProjectsPage'
@@ -44,7 +46,8 @@ export default function App() {
   if (!hydrated) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-cream">
-        <p className="font-display text-3xl text-ink-soft">Любимая</p>
+        <p className="font-display text-3xl text-ink-soft">Моя 100-дневка</p>
+        <p className="mt-2 text-sm text-ink-muted">загрузка...</p>
       </div>
     )
   }
@@ -62,6 +65,8 @@ export default function App() {
       {page === 'goal-detail' && <GoalDetailPage />}
       {page === 'stats' && <StatsPage />}
       {page === 'calendar' && <CalendarPage />}
+      {page === 'day' && <DayPage />}
+      {page === 'thoughts' && <ThoughtsPage />}
       {page === 'notes' && <NotesPage />}
       {page === 'note-detail' && <NoteDetailPage />}
       {page === 'ai' && <AiPage />}

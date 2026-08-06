@@ -23,6 +23,7 @@ const moreLinks: { id: PageId; label: string; icon: typeof Sunrise; desc: string
   { id: 'morning', label: 'Утренний ритуал', icon: Sunrise, desc: 'Начало дня' },
   { id: 'evening', label: 'Вечерний ритуал', icon: Moon, desc: 'Завершение дня' },
   { id: 'calendar', label: 'Календарь', icon: CalendarDays, desc: 'Любой день' },
+  { id: 'thoughts', label: 'Мысли', icon: Sparkles, desc: 'Коллекция мыслей дня' },
   { id: 'notes', label: 'Заметки', icon: NotebookPen, desc: 'Мысли и файлы' },
   { id: 'projects', label: 'Проекты', icon: LayoutGrid, desc: 'Жизненные направления' },
   { id: 'life', label: 'Панель жизни', icon: CircleDot, desc: 'Баланс сфер' },
@@ -221,7 +222,7 @@ export function RemindersPage() {
 
 const allWidgets: { id: HomeWidget; label: string }[] = [
   { id: 'greeting', label: 'Приветствие' },
-  { id: 'quote', label: 'Цитата дня' },
+  { id: 'thought', label: 'Мысль дня' },
   { id: 'progress', label: 'Прогресс дня' },
   { id: 'morning', label: 'Утро' },
   { id: 'habits', label: 'Привычки' },
@@ -401,8 +402,7 @@ export function SettingsPage() {
         </p>
         <p className="mt-2">На Mac/Windows: в браузере выберите «Установить приложение» / Install.</p>
         <p className="mt-2">
-          Виджеты iPhone: после установки PWA на экран Домой используйте быстрые плитки «Любимая» и разделы Утро / Вечер / Цели.
-          Полноценные WidgetKit-виджеты требуют нативного контейнера; веб-версия даёт ярлыки и офлайн-доступ.
+          Виджеты iPhone: после установки PWA на экран Домой используйте ярлык «Моя 100-дневка».
         </p>
       </Card>
     </Page>
