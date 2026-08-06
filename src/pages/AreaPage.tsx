@@ -598,6 +598,46 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
         </Card>
       )}
 
+      <Card className="mb-5 overflow-hidden p-5" hover={false}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-display text-2xl text-ink">План моей 100-дневки</h2>
+          <Button variant="soft" onClick={openNewPlan}>
+            <Plus size={16} />
+          </Button>
+        </div>
+        <DndContext sensors={ruleSensors} collisionDetection={closestCenter} onDragEnd={onPlanDragEnd}>
+          <SortableContext items={plans.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {plans.map((p) => (
+                <SortableAreaPlan
+                  key={p.id}
+                  plan={p}
+                  color={meta.color}
+                  onEdit={() => openEditPlan(p)}
+                  onDelete={() => deleteAreaPlan(p.id)}
+                  onDec={() =>
+                    updateAreaPlan(p.id, { currentValue: Math.max(0, p.currentValue - 1) })
+                  }
+                  onInc={() =>
+                    updateAreaPlan(p.id, {
+                      currentValue: Math.min(p.targetValue, p.currentValue + 1),
+                    })
+                  }
+                  onToggleDone={() =>
+                    updateAreaPlan(p.id, {
+                      currentValue: isPlanDone(p)
+                        ? Math.max(0, p.targetValue - 1)
+                        : p.targetValue,
+                    })
+                  }
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        {!plans.length && <Empty title="Составьте план 100-дневки" />}
+      </Card>
+
       {areaId === 'body' && period && (
         <Card className="mb-6 border border-[#E8C4C4]/60 bg-[#FBF1F1]/80 p-5" hover={false}>
           <div className="flex items-start gap-3">
@@ -645,70 +685,6 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
           </div>
         </Card>
       )}
-
-      <Card className="mb-5 overflow-hidden p-5" hover={false}>
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="font-display text-2xl text-ink">Правила</h2>
-          <Button variant="soft" onClick={openNewRule}>
-            <Plus size={16} />
-          </Button>
-        </div>
-        <DndContext sensors={ruleSensors} collisionDetection={closestCenter} onDragEnd={onRuleDragEnd}>
-          <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-              {rules.map((r) => (
-                <SortableAreaRule
-                  key={r.id}
-                  rule={r}
-                  onEdit={() => openEditRule(r)}
-                  onDelete={() => deleteAreaRule(r.id)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-        {!rules.length && <Empty title="Добавьте первое правило" />}
-      </Card>
-
-      <Card className="mb-5 overflow-hidden p-5" hover={false}>
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="font-display text-2xl text-ink">План моей 100-дневки</h2>
-          <Button variant="soft" onClick={openNewPlan}>
-            <Plus size={16} />
-          </Button>
-        </div>
-        <DndContext sensors={ruleSensors} collisionDetection={closestCenter} onDragEnd={onPlanDragEnd}>
-          <SortableContext items={plans.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-              {plans.map((p) => (
-                <SortableAreaPlan
-                  key={p.id}
-                  plan={p}
-                  color={meta.color}
-                  onEdit={() => openEditPlan(p)}
-                  onDelete={() => deleteAreaPlan(p.id)}
-                  onDec={() =>
-                    updateAreaPlan(p.id, { currentValue: Math.max(0, p.currentValue - 1) })
-                  }
-                  onInc={() =>
-                    updateAreaPlan(p.id, {
-                      currentValue: Math.min(p.targetValue, p.currentValue + 1),
-                    })
-                  }
-                  onToggleDone={() =>
-                    updateAreaPlan(p.id, {
-                      currentValue: isPlanDone(p)
-                        ? Math.max(0, p.targetValue - 1)
-                        : p.targetValue,
-                    })
-                  }
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-        {!plans.length && <Empty title="Составьте план 100-дневки" />}
-      </Card>
 
       <Card className="mb-5 p-5" hover={false}>
         <div className="mb-4 flex items-center justify-between gap-3">
@@ -843,6 +819,30 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
           </div>
         </Card>
       )}
+
+      <Card className="mb-5 overflow-hidden p-5" hover={false}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-display text-2xl text-ink">Правила</h2>
+          <Button variant="soft" onClick={openNewRule}>
+            <Plus size={16} />
+          </Button>
+        </div>
+        <DndContext sensors={ruleSensors} collisionDetection={closestCenter} onDragEnd={onRuleDragEnd}>
+          <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {rules.map((r) => (
+                <SortableAreaRule
+                  key={r.id}
+                  rule={r}
+                  onEdit={() => openEditRule(r)}
+                  onDelete={() => deleteAreaRule(r.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        {!rules.length && <Empty title="Добавьте первое правило" />}
+      </Card>
 
       <Card className="mb-5 p-5" hover={false}>
         <div className="mb-4 flex items-center justify-between">
