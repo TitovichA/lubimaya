@@ -1,24 +1,30 @@
 import { motion } from 'framer-motion'
-import type { ReactNode, ButtonHTMLAttributes } from 'react'
+import type { ReactNode, ButtonHTMLAttributes, CSSProperties } from 'react'
 
 export function Card({
   children,
   className = '',
   onClick,
   hover = true,
+  style,
 }: {
   children: ReactNode
   className?: string
   onClick?: () => void
   hover?: boolean
+  style?: CSSProperties
 }) {
+  const hasCustomBg = /\bbg-/.test(className) || Boolean(style?.background || style?.backgroundColor)
   return (
     <motion.div
       layout
       whileHover={hover && onClick ? { y: -2 } : undefined}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       onClick={onClick}
-      className={`rounded-3xl bg-white/80 shadow-[var(--shadow-card)] border border-white/60 ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      style={style}
+      className={`rounded-3xl shadow-[var(--shadow-card)] border border-sand/50 ${
+        hasCustomBg ? '' : 'bg-[var(--color-card)]'
+      } ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
       {children}
     </motion.div>

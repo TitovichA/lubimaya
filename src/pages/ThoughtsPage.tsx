@@ -14,6 +14,7 @@ import { GripVertical, Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import { Page, Card, Button, Modal, TextArea, Empty } from '../components/ui'
 import type { Thought } from '../types'
+import { isSunday } from '../lib/sunday'
 
 function SortableThought({
   thought,
@@ -165,26 +166,38 @@ export function ThoughtsPage() {
 
 export function ThoughtOfDayCard() {
   const ensureThoughtOfDay = useAppStore((s) => s.ensureThoughtOfDay)
+  const ensureSundayThought = useAppStore((s) => s.ensureSundayThought)
   const setPage = useAppStore((s) => s.setPage)
   const [text, setText] = useState('')
+  const [sundayMode, setSundayMode] = useState(false)
 
   useEffect(() => {
-    const t = ensureThoughtOfDay()
+    const sunday = isSunday()
+    setSundayMode(sunday)
+    const t = sunday ? ensureSundayThought() : ensureThoughtOfDay()
     setText(t?.text || '')
-  }, [ensureThoughtOfDay])
+  }, [ensureThoughtOfDay, ensureSundayThought])
 
   if (!text) return null
 
   return (
     <Card className="relative overflow-hidden p-6 md:p-8" hover={false}>
-      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-sky/25 via-transparent to-gold-light/15" />
-      <p className="text-[11px] uppercase tracking-[0.18em] text-gold-deep">✨ Мысль дня</p>
+      <div
+        className={`absolute inset-0 -z-10 ${
+          sundayMode
+            ? 'bg-gradient-to-br from-[#A8B892]/25 via-transparent to-gold-light/10'
+            : 'bg-gradient-to-br from-sky/25 via-transparent to-gold-light/15'
+        }`}
+      />
+      <p className="text-[11px] uppercase tracking-[0.18em] text-gold-deep">
+        {sundayMode ? '🌾 Мысль недели' : '✨ Мысль дня'}
+      </p>
       <p className="mt-4 font-display text-2xl leading-snug text-ink md:text-[1.7rem]">{text}</p>
       <button
-        onClick={() => setPage('thoughts')}
+        onClick={() => setPage(sundayMode ? 'sunday' : 'thoughts')}
         className="mt-6 text-sm text-ink-muted transition hover:text-ink"
       >
-        Посмотреть всю коллекцию мыслей →
+        {sundayMode ? 'Коллекция мыслей недели →' : 'Посмотреть всю коллекцию мыслей →'}
       </button>
     </Card>
   )

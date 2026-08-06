@@ -43,6 +43,15 @@ export type RitualItem = {
   order: number
 }
 
+/** Воскресный ритуал — можно временно отключить (enabled: false) */
+export type SundayRitual = {
+  id: string
+  title: string
+  description?: string
+  order: number
+  enabled: boolean
+}
+
 export type DayRitualProgress = {
   date: string
   completedIds: string[]
@@ -267,6 +276,7 @@ export type HomeWidget =
   | 'ai'
   | 'areas'
   | 'todayDue'
+  | 'sunday'
 
 export type LifeBalance = Record<LifeSphere, number>
 
@@ -276,12 +286,21 @@ export type ChallengeSettings = {
   durationDays: number
 }
 
+export type ThemeMode = 'light' | 'dark'
+
 export type UserSettings = {
   name: string
   greetingStyle: 'warm' | 'formal' | 'minimal'
   homeWidgets: HomeWidget[]
   hiddenWidgets: HomeWidget[]
   themeAccent: string
+  themeMode: ThemeMode
+  /** Автопереключение светлой/тёмной темы по времени суток */
+  themeScheduleEnabled: boolean
+  /** С какого времени включать светлую тему (HH:MM) */
+  themeLightFrom: string
+  /** С какого времени включать тёмную тему (HH:MM) */
+  themeDarkFrom: string
   syncCode?: string
   syncUrl?: string
   lastSyncAt?: string
@@ -289,6 +308,8 @@ export type UserSettings = {
   weekStartsOn: 0 | 1
   thoughtByDate: Record<string, string>
   thoughtCycleShown: string[]
+  sundayThoughtByDate: Record<string, string>
+  sundayThoughtCycleShown: string[]
   cycle: CycleSettings
   challenge: ChallengeSettings
 }
@@ -300,6 +321,8 @@ export type AppData = {
   eveningRitual: RitualItem[]
   morningProgress: DayRitualProgress[]
   eveningProgress: DayRitualProgress[]
+  sundayRitual: SundayRitual[]
+  sundayProgress: DayRitualProgress[]
   habits: Habit[]
   tasks: Task[]
   goals: Goal[]
@@ -308,6 +331,7 @@ export type AppData = {
   dayTemplates: DayTemplate[]
   dayLogs: DayLog[]
   thoughts: Thought[]
+  sundayThoughts: Thought[]
   areaRules: AreaRule[]
   areaPlans: AreaPlanItem[]
   areaHabits: AreaHabit[]
@@ -323,6 +347,7 @@ export type PageId =
   | 'more'
   | 'morning'
   | 'evening'
+  | 'sunday'
   | 'habits'
   | 'habit-detail'
   | 'tasks'

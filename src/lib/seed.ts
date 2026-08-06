@@ -1,7 +1,7 @@
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import type { AppData, RitualItem } from '../types'
-import { createThoughtsSeed } from './thoughts'
+import type { AppData, RitualItem, SundayRitual } from '../types'
+import { createThoughtsSeed, createSundayThoughtsSeed } from './thoughts'
 
 export function todayKey(date = new Date()) {
   return format(date, 'yyyy-MM-dd')
@@ -91,8 +91,25 @@ const eveningDefaults: Omit<RitualItem, 'id'>[] = [
   { title: 'Отключение уведомлений', time: '22:50', order: 15 },
 ]
 
+const sundayDefaults: Omit<SundayRitual, 'id'>[] = [
+  { title: 'Цифровой детокс на весь день.', order: 0, enabled: true },
+  { title: 'Только растительная пища.', order: 1, enabled: true },
+  { title: 'Повторение изученного материала.', order: 2, enabled: true },
+  { title: 'Чтение книг.', order: 3, enabled: true },
+  { title: 'День без декоративной косметики.', order: 4, enabled: true },
+  { title: 'Максимально простой уход за собой.', order: 5, enabled: true },
+  { title: 'Природа.', order: 6, enabled: true },
+  { title: 'Вода.', order: 7, enabled: true },
+  { title: 'Контакт с землёй.', order: 8, enabled: true },
+  { title: 'Прогулка босиком.', order: 9, enabled: true },
+]
+
 function withIds(items: Omit<RitualItem, 'id'>[], prefix: string): RitualItem[] {
   return items.map((item, i) => ({ ...item, id: `${prefix}-${i}` }))
+}
+
+function withSundayIds(items: Omit<SundayRitual, 'id'>[], prefix: string): SundayRitual[] {
+  return items.map((item, i) => ({ ...item, id: `${prefix}-${i}`, enabled: item.enabled !== false }))
 }
 
 export function createSeedData(): AppData {
@@ -114,6 +131,7 @@ export function createSeedData(): AppData {
         'morning',
         'habits',
         'evening',
+        'sunday',
         'tasks',
         'goals',
         'stats',
@@ -121,10 +139,16 @@ export function createSeedData(): AppData {
       ],
       hiddenWidgets: [],
       themeAccent: '#C4A574',
+      themeMode: 'light',
+      themeScheduleEnabled: false,
+      themeLightFrom: '07:00',
+      themeDarkFrom: '21:00',
       notificationsEnabled: true,
       weekStartsOn: 1,
       thoughtByDate: {},
       thoughtCycleShown: [],
+      sundayThoughtByDate: {},
+      sundayThoughtCycleShown: [],
       cycle: {
         enabled: true,
         cycleLength: 28,
@@ -140,6 +164,8 @@ export function createSeedData(): AppData {
     eveningRitual: withIds(eveningDefaults, 'e'),
     morningProgress: [],
     eveningProgress: [],
+    sundayRitual: withSundayIds(sundayDefaults, 'sun'),
+    sundayProgress: [],
     habits: [
       {
         id: 'h-water',
@@ -468,6 +494,7 @@ export function createSeedData(): AppData {
     ],
     dayLogs: [],
     thoughts: createThoughtsSeed(),
+    sundayThoughts: createSundayThoughtsSeed(),
     areaRules: [
       { id: 'ar-h1', areaId: 'home', title: 'Всегда чистая кухня вечером', order: 0 },
       { id: 'ar-h2', areaId: 'home', title: 'Вещи сразу кладу на место', order: 1 },

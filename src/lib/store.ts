@@ -8,6 +8,7 @@ import type {
   Note,
   Project,
   RitualItem,
+  SundayRitual,
   DayTemplate,
   PageId,
   Reminder,
@@ -25,8 +26,9 @@ import type {
   ChallengeSettings,
 } from '../types'
 import { createSeedData, todayKey } from './seed'
-import { createThoughtsSeed, pickThoughtForDate } from './thoughts'
+import { createThoughtsSeed, createSundayThoughtsSeed, pickThoughtForDate } from './thoughts'
 import { defaultChallenge } from './challenge'
+import { upsertSundayProgress, getSundayDone } from './sunday'
 import { loadLocal, saveLocal, getSyncMeta, setSyncMeta, pushCloud, pullCloud, mergeData, createSyncCode, deviceId } from './sync'
 
 type NavState = {
@@ -52,6 +54,12 @@ type Store = {
   updateRitual: (type: 'morning' | 'evening', id: string, patch: Partial<RitualItem>) => void
   deleteRitual: (type: 'morning' | 'evening', id: string) => void
   reorderRituals: (type: 'morning' | 'evening', ids: string[]) => void
+  // sunday
+  toggleSundayRitual: (id: string, date?: string) => void
+  addSundayRitual: (item: Omit<SundayRitual, 'id' | 'order'>) => void
+  updateSundayRitual: (id: string, patch: Partial<SundayRitual>) => void
+  deleteSundayRitual: (id: string) => void
+  reorderSundayRituals: (ids: string[]) => void
   // habits
   addHabit: (habit: Omit<Habit, 'id' | 'createdAt' | 'completions'>) => void
   updateHabit: (id: string, patch: Partial<Habit>) => void
@@ -90,10 +98,15 @@ type Store = {
   setDayMood: (date: string, mood: number) => void
   // thoughts
   ensureThoughtOfDay: (date?: string) => Thought | null
+  ensureSundayThought: (date?: string) => Thought | null
   addThought: (text: string) => void
   updateThought: (id: string, patch: Partial<Thought>) => void
   deleteThought: (id: string) => void
   reorderThoughts: (ids: string[]) => void
+  addSundayThought: (text: string) => void
+  updateSundayThought: (id: string, patch: Partial<Thought>) => void
+  deleteSundayThought: (id: string) => void
+  reorderSundayThoughts: (ids: string[]) => void
   // areas
   addAreaRule: (areaId: LifeAreaId, title: string) => void
   updateAreaRule: (id: string, patch: Partial<AreaRule>) => void
@@ -131,17 +144,23 @@ function migrateData(raw: AppData): AppData {
   const widgets = (raw.settings?.homeWidgets || seed.settings.homeWidgets).map((w) =>
     w === 'quote' ? 'thought' : w,
   ) as AppData['settings']['homeWidgets']
-  const mergedWidgets = [...new Set([...widgets, 'areas', 'todayDue'])] as HomeWidget[]
+  const mergedWidgets = [...new Set([...widgets, 'areas', 'todayDue', 'sunday'])] as HomeWidget[]
   return {
     ...seed,
     ...raw,
-    version: Math.max(raw.version || 1, 3),
+    version: Math.max(raw.version || 1, 4),
     settings: {
       ...seed.settings,
       ...raw.settings,
       homeWidgets: mergedWidgets,
+      themeMode: raw.settings?.themeMode === 'dark' ? 'dark' : 'light',
+      themeScheduleEnabled: !!raw.settings?.themeScheduleEnabled,
+      themeLightFrom: raw.settings?.themeLightFrom || '07:00',
+      themeDarkFrom: raw.settings?.themeDarkFrom || '21:00',
       thoughtByDate: raw.settings?.thoughtByDate || {},
       thoughtCycleShown: raw.settings?.thoughtCycleShown || [],
+      sundayThoughtByDate: raw.settings?.sundayThoughtByDate || {},
+      sundayThoughtCycleShown: raw.settings?.sundayThoughtCycleShown || [],
       cycle: { ...seed.settings.cycle, ...raw.settings?.cycle },
       challenge: {
         ...defaultChallenge(todayKey()),
@@ -150,6 +169,11 @@ function migrateData(raw: AppData): AppData {
       },
     },
     thoughts: raw.thoughts?.length ? raw.thoughts : createThoughtsSeed(),
+    sundayThoughts: raw.sundayThoughts?.length ? raw.sundayThoughts : createSundayThoughtsSeed(),
+    sundayRitual: raw.sundayRitual?.length
+      ? raw.sundayRitual.map((r) => ({ ...r, enabled: r.enabled !== false }))
+      : seed.sundayRitual,
+    sundayProgress: raw.sundayProgress || [],
     areaRules: raw.areaRules?.length ? raw.areaRules : seed.areaRules,
     areaPlans: raw.areaPlans?.length ? raw.areaPlans : seed.areaPlans,
     areaHabits: raw.areaHabits?.length ? raw.areaHabits : seed.areaHabits,
@@ -157,6 +181,10 @@ function migrateData(raw: AppData): AppData {
     businessEvents: raw.businessEvents?.length ? raw.businessEvents : seed.businessEvents,
     teamEvents: migrateTeamEvents(raw, seed),
   }
+}
+
+function getSundayDoneIds(data: AppData, date: string) {
+  return getSundayDone(data, date)
 }
 
 const FAR_END = '9999-12-31'
@@ -314,6 +342,62 @@ export const useAppStore = create<Store>((set, get) => ({
     const map = new Map(get().data[key].map((r) => [r.id, r]))
     const reordered = ids.map((id, order) => ({ ...map.get(id)!, order }))
     set({ data: { ...get().data, [key]: reordered } })
+    get().persist()
+  },
+
+  toggleSundayRitual: (id, date = todayKey()) => {
+    const data = get().data
+    const current = getSundayDoneIds(data, date)
+    const completedIds = current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+    set({
+      data: {
+        ...data,
+        sundayProgress: upsertSundayProgress(data.sundayProgress || [], date, completedIds),
+      },
+    })
+    get().persist()
+  },
+
+  addSundayRitual: (item) => {
+    const items = get().data.sundayRitual || []
+    const next: SundayRitual = {
+      ...item,
+      id: uuid(),
+      order: items.length,
+      enabled: item.enabled !== false,
+    }
+    set({ data: { ...get().data, sundayRitual: [...items, next] } })
+    get().persist()
+  },
+
+  updateSundayRitual: (id, patch) => {
+    set({
+      data: {
+        ...get().data,
+        sundayRitual: (get().data.sundayRitual || []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
+      },
+    })
+    get().persist()
+  },
+
+  deleteSundayRitual: (id) => {
+    set({
+      data: {
+        ...get().data,
+        sundayRitual: (get().data.sundayRitual || []).filter((r) => r.id !== id),
+      },
+    })
+    get().persist()
+  },
+
+  reorderSundayRituals: (ids) => {
+    const map = new Map((get().data.sundayRitual || []).map((r) => [r.id, r]))
+    set({
+      data: {
+        ...get().data,
+        sundayRitual: ids.map((id, order) => ({ ...map.get(id)!, order })),
+      },
+    })
     get().persist()
   },
 
@@ -644,6 +728,34 @@ export const useAppStore = create<Store>((set, get) => ({
     return result.thought
   },
 
+  ensureSundayThought: (date = todayKey()) => {
+    const data = get().data
+    const result = pickThoughtForDate(
+      data.sundayThoughts || [],
+      data.settings.sundayThoughtByDate || {},
+      data.settings.sundayThoughtCycleShown || [],
+      date,
+    )
+    if (
+      result.thought &&
+      (data.settings.sundayThoughtByDate?.[date] !== result.thought.id ||
+        JSON.stringify(data.settings.sundayThoughtCycleShown) !== JSON.stringify(result.cycleShown))
+    ) {
+      set({
+        data: {
+          ...data,
+          settings: {
+            ...data.settings,
+            sundayThoughtByDate: result.thoughtByDate,
+            sundayThoughtCycleShown: result.cycleShown,
+          },
+        },
+      })
+      get().persist()
+    }
+    return result.thought
+  },
+
   addThought: (text) => {
     const thoughts = get().data.thoughts
     const next: Thought = {
@@ -677,6 +789,49 @@ export const useAppStore = create<Store>((set, get) => ({
       data: {
         ...get().data,
         thoughts: ids.map((id, order) => ({ ...map.get(id)!, order })),
+      },
+    })
+    get().persist()
+  },
+
+  addSundayThought: (text) => {
+    const thoughts = get().data.sundayThoughts || []
+    const next: Thought = {
+      id: uuid(),
+      text: text.trim(),
+      favorite: false,
+      order: thoughts.length,
+    }
+    set({ data: { ...get().data, sundayThoughts: [...thoughts, next] } })
+    get().persist()
+  },
+
+  updateSundayThought: (id, patch) => {
+    set({
+      data: {
+        ...get().data,
+        sundayThoughts: (get().data.sundayThoughts || []).map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      },
+    })
+    get().persist()
+  },
+
+  deleteSundayThought: (id) => {
+    set({
+      data: {
+        ...get().data,
+        sundayThoughts: (get().data.sundayThoughts || []).filter((t) => t.id !== id),
+      },
+    })
+    get().persist()
+  },
+
+  reorderSundayThoughts: (ids) => {
+    const map = new Map((get().data.sundayThoughts || []).map((t) => [t.id, t]))
+    set({
+      data: {
+        ...get().data,
+        sundayThoughts: ids.map((id, order) => ({ ...map.get(id)!, order })),
       },
     })
     get().persist()

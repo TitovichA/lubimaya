@@ -23,6 +23,7 @@ import { searchAll, generateInsights, periodAverage, bestHabitStreaks, dayProgre
 import { isPeriodicDue, areaMeta, isTeamEventImportantOn, formatTeamEventHeadline } from '../lib/areas'
 import { todayKey } from '../lib/seed'
 import { exportJson, importJsonFile } from '../lib/sync'
+import { themeScheduleLabel } from '../lib/theme'
 import type { HomeWidget, PageId } from '../types'
 import { Page, Card, Button, Input, Empty, SectionLabel } from '../components/ui'
 
@@ -37,6 +38,7 @@ const sphereLinks: { id: PageId; label: string; icon: typeof Sunrise; desc: stri
 const moreLinks: { id: PageId; label: string; icon: typeof Sunrise; desc: string }[] = [
   { id: 'morning', label: 'Утренний ритуал', icon: Sunrise, desc: 'Начало дня' },
   { id: 'evening', label: 'Вечерний ритуал', icon: Moon, desc: 'Завершение дня' },
+  { id: 'sunday', label: 'Воскресенье', icon: Flower2, desc: 'День восстановления' },
   { id: 'calendar', label: 'Календарь', icon: CalendarDays, desc: 'Любой день' },
   { id: 'thoughts', label: 'Мысли', icon: Sparkles, desc: 'Коллекция мыслей дня' },
   { id: 'notes', label: 'Заметки', icon: NotebookPen, desc: 'Мысли и файлы' },
@@ -282,6 +284,7 @@ const allWidgets: { id: HomeWidget; label: string }[] = [
   { id: 'morning', label: 'Утро' },
   { id: 'habits', label: 'Привычки' },
   { id: 'evening', label: 'Вечер' },
+  { id: 'sunday', label: 'Воскресенье' },
   { id: 'tasks', label: 'Задачи' },
   { id: 'goals', label: 'Цели' },
   { id: 'stats', label: 'Статистика' },
@@ -332,6 +335,63 @@ export function SettingsPage() {
           value={data.settings.name}
           onChange={(e) => updateSettings({ name: e.target.value })}
         />
+      </Card>
+
+      <SectionLabel>Тема оформления</SectionLabel>
+      <Card className="mb-6 space-y-4 p-5" hover={false}>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={!data.settings.themeScheduleEnabled && data.settings.themeMode !== 'dark' ? 'soft' : 'ghost'}
+            onClick={() =>
+              updateSettings({ themeMode: 'light', themeScheduleEnabled: false })
+            }
+          >
+            Светлая
+          </Button>
+          <Button
+            variant={!data.settings.themeScheduleEnabled && data.settings.themeMode === 'dark' ? 'soft' : 'ghost'}
+            onClick={() =>
+              updateSettings({ themeMode: 'dark', themeScheduleEnabled: false })
+            }
+          >
+            Тёмная
+          </Button>
+        </div>
+
+        <label className="flex cursor-pointer items-start gap-3 text-sm text-ink">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={!!data.settings.themeScheduleEnabled}
+            onChange={(e) => updateSettings({ themeScheduleEnabled: e.target.checked })}
+          />
+          <span>
+            <span className="font-medium">Переключать тему по времени</span>
+            <span className="mt-1 block text-xs leading-relaxed text-ink-muted">
+              Светлая и тёмная тема будут меняться автоматически по вашему расписанию.
+            </span>
+          </span>
+        </label>
+
+        {data.settings.themeScheduleEnabled && (
+          <div className="space-y-3 rounded-2xl border border-sand/60 bg-cream/50 p-4">
+            <Input
+              label="Светлая тема с"
+              type="time"
+              value={data.settings.themeLightFrom || '07:00'}
+              onChange={(e) => updateSettings({ themeLightFrom: e.target.value })}
+            />
+            <Input
+              label="Тёмная тема с"
+              type="time"
+              value={data.settings.themeDarkFrom || '21:00'}
+              onChange={(e) => updateSettings({ themeDarkFrom: e.target.value })}
+            />
+            <p className="text-xs leading-relaxed text-ink-muted">
+              {themeScheduleLabel(data.settings)}
+            </p>
+          </div>
+        )}
       </Card>
 
       <SectionLabel>Синхронизация</SectionLabel>

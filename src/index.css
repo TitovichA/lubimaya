@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-cream: #F7F3EC;
   --color-cream-soft: #FBF8F3;
@@ -17,6 +19,8 @@
   --color-gold-deep: #A68B5B;
   --color-white: #FFFFFF;
   --color-glass: rgba(255, 255, 255, 0.55);
+  --color-card: rgba(255, 255, 255, 0.8);
+  --color-surface: #FFFFFF;
 
   --font-display: "Cormorant Garamond", Georgia, serif;
   --font-sans: "Manrope", system-ui, sans-serif;
@@ -24,6 +28,37 @@
   --shadow-soft: 0 4px 24px rgba(26, 26, 26, 0.04), 0 1px 3px rgba(26, 26, 26, 0.03);
   --shadow-card: 0 8px 32px rgba(26, 26, 26, 0.06), 0 2px 8px rgba(26, 26, 26, 0.03);
   --shadow-lift: 0 16px 48px rgba(26, 26, 26, 0.08), 0 4px 12px rgba(26, 26, 26, 0.04);
+}
+
+/* Тёплая тёмная тема — в тон кремово-золотой эстетике */
+html.dark {
+  --color-cream: #161412;
+  --color-cream-soft: #1E1B18;
+  --color-sand: #3A342E;
+  --color-beige: #5A5046;
+  --color-mist: #2A3036;
+  --color-sky: #2A353C;
+  --color-sky-deep: #8BAFC0;
+  --color-stone: #6B645C;
+  --color-ink: #F4EFE6;
+  --color-ink-soft: #DCD4C8;
+  --color-ink-muted: #9A9288;
+  --color-gold: #C4A574;
+  --color-gold-light: #6E5A40;
+  --color-gold-deep: #E0C89A;
+  --color-white: #FFFFFF;
+  --color-glass: rgba(30, 27, 24, 0.78);
+  --color-card: rgba(36, 32, 28, 0.92);
+  --color-surface: #24201C;
+
+  --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-lift: 0 16px 48px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+  color-scheme: dark;
+}
+
+html:not(.dark) {
+  color-scheme: light;
 }
 
 * {
@@ -42,6 +77,7 @@ body {
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.35s ease, color 0.35s ease;
 }
 
 #root {

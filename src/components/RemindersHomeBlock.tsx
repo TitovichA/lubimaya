@@ -20,11 +20,9 @@ function ReminderCard({ item }: { item: SmartReminder }) {
         style={{ borderColor: `${item.color}55` }}
       >
         <span
-          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs"
-          style={{ background: `${item.color}33` }}
-        >
-          {item.emoji}
-        </span>
+          className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full"
+          style={{ background: item.color }}
+        />
         <div className="min-w-0 flex-1">
           <p className="text-[10px] uppercase tracking-[0.16em]" style={{ color: item.color }}>
             {item.areaLabel}

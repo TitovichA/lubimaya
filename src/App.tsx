@@ -5,6 +5,7 @@ import { SplashScreen } from './components/SplashScreen'
 import { useAppStore } from './lib/store'
 import { HomePage } from './pages/HomePage'
 import { RitualPage } from './pages/RitualPage'
+import { SundayPage } from './pages/SundayPage'
 import { HabitsPage, HabitDetailPage } from './pages/HabitsPage'
 import { TasksPage } from './pages/TasksPage'
 import { GoalsPage, GoalDetailPage } from './pages/GoalsPage'
@@ -85,6 +86,7 @@ export default function App() {
             {page === 'more' && <MoreHubPage />}
             {page === 'morning' && <RitualPage type="morning" />}
             {page === 'evening' && <RitualPage type="evening" />}
+            {page === 'sunday' && <SundayPage />}
             {page === 'habits' && <HabitsPage />}
             {page === 'habit-detail' && <HabitDetailPage />}
             {page === 'tasks' && <TasksPage />}
