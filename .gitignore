@@ -27,3 +27,5 @@ dist-ssr
 lubimaya-beget.zip
 .env
 .env.*
+scripts/.beget_pw
+scripts/.beget_pw*

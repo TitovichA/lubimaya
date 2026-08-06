@@ -7,7 +7,11 @@ host = "e928145n.beget.tech"
 user = "e928145n"
 password = os.environ.get("BEGET_PASSWORD", "")
 if not password:
-    raise SystemExit("Set BEGET_PASSWORD env var")
+    pw_file = Path(__file__).with_name(".beget_pw")
+    if pw_file.exists():
+        password = pw_file.read_text(encoding="utf-8").strip()
+if not password:
+    raise SystemExit("Set BEGET_PASSWORD env var or scripts/.beget_pw")
 local_root = Path(r"C:\Users\anton\OneDrive\Рабочий стол\Cursor\Ежедневник\dist")
 
 client = paramiko.SSHClient()

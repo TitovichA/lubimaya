@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/lubimaya/',
+  base: '/',
   plugins: [
     react(),
     tailwindcss(),
@@ -19,8 +19,8 @@ export default defineConfig({
         background_color: '#F7F3EC',
         display: 'standalone',
         orientation: 'portrait-primary',
-        start_url: '/lubimaya/',
-        scope: '/lubimaya/',
+        start_url: '/',
+        scope: '/',
         lang: 'ru',
         categories: ['lifestyle', 'productivity', 'health'],
         icons: [
@@ -44,7 +44,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: '/lubimaya/index.html',
+        navigateFallback: '/index.html',
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

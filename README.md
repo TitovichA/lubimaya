@@ -16,8 +16,10 @@ npm run build
 npm run preview
 ```
 
-## GitHub Pages
+## Сайт
 
-https://titovicha.github.io/lubimaya/
+Рабочая версия на Beget:
 
-После каждого push в `master` сайт обновляется автоматически.
+http://e928145n.beget.tech/
+
+GitHub Pages больше не публикует приложение — только редирект на Beget.
