@@ -18,8 +18,6 @@ npm run preview
 
 ## Сайт
 
-Рабочая версия на Beget:
-
 http://e928145n.beget.tech/
 
-GitHub Pages больше не публикует приложение — только редирект на Beget.
+Выгрузка на Beget: `python scripts/deploy_beget.py` (нужен `scripts/.beget_pw` или `BEGET_PASSWORD`).
