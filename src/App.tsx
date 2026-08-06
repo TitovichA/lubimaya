@@ -10,6 +10,7 @@ import { StatsPage } from './pages/StatsPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { DayPage } from './pages/DayPage'
 import { ThoughtsPage } from './pages/ThoughtsPage'
+import { AreaPage } from './pages/AreaPage'
 import { NotesPage, NoteDetailPage } from './pages/NotesPage'
 import { AiPage } from './pages/AiPage'
 import { ProjectsPage, ProjectDetailPage, LifePage } from './pages/ProjectsPage'
@@ -67,6 +68,11 @@ export default function App() {
       {page === 'calendar' && <CalendarPage />}
       {page === 'day' && <DayPage />}
       {page === 'thoughts' && <ThoughtsPage />}
+      {page === 'area-home' && <AreaPage areaId="home" />}
+      {page === 'area-body' && <AreaPage areaId="body" />}
+      {page === 'area-business' && <AreaPage areaId="business" />}
+      {page === 'area-growth' && <AreaPage areaId="growth" />}
+      {page === 'area-family' && <AreaPage areaId="family" />}
       {page === 'notes' && <NotesPage />}
       {page === 'note-detail' && <NoteDetailPage />}
       {page === 'ai' && <AiPage />}

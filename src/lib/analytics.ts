@@ -1,6 +1,7 @@
 import { eachDayOfInterval, format, subDays, getDay, parseISO } from 'date-fns'
 import type { AppData, Habit, Goal } from '../types'
 import { todayKey } from './seed'
+import { isPeriodDay, isPeriodicDue } from './areas'
 
 export function ritualProgress(completed: number, total: number) {
   if (total === 0) return 0
@@ -61,11 +62,31 @@ export function dayProgress(data: AppData, date = todayKey()) {
   const tasksDone = tasks.filter((t) => t.done).length
   const tasksTotal = tasks.length
 
+  const period = isPeriodDay(data.settings.cycle, date)
+  const areaHabits = (data.areaHabits || []).filter(
+    (h) => !(period && h.softOnCycle && !h.completions[date]),
+  )
+  const areaHabitsDone = areaHabits.filter((h) => h.completions[date]).length
+  const areaHabitsTotal = areaHabits.length
+
+  const duePeriodic = (data.periodicHabits || [])
+    .filter((h) => isPeriodicDue(h.rule, parseISO(date)))
+    .filter((h) => !(period && h.softOnCycle && !h.completions[date]))
+  const periodicDone = duePeriodic.filter((h) => h.completions[date]).length
+  const periodicTotal = duePeriodic.length
+
+  const dueBiz = (data.businessEvents || []).filter((e) => isPeriodicDue(e.rule, parseISO(date)))
+  const bizDone = dueBiz.filter((e) => e.completions[date]).length
+  const bizTotal = dueBiz.length
+
   const parts = [
     morningTotal ? morningDone / morningTotal : null,
     eveningTotal ? eveningDone / eveningTotal : null,
     habitsTotal ? habitsDone / habitsTotal : null,
     tasksTotal ? tasksDone / tasksTotal : null,
+    areaHabitsTotal ? areaHabitsDone / areaHabitsTotal : null,
+    periodicTotal ? periodicDone / periodicTotal : null,
+    bizTotal ? bizDone / bizTotal : null,
   ].filter((v): v is number => v !== null)
 
   if (!parts.length) return 0

@@ -19,6 +19,8 @@ export type LifeSphere =
   | 'бизнес'
   | 'отдых'
 
+export type LifeAreaId = 'home' | 'body' | 'business' | 'growth' | 'family'
+
 export type RepeatRule =
   | { type: 'none' }
   | { type: 'daily' }
@@ -85,6 +87,7 @@ export type Task = {
   order: number
   reminders: Reminder[]
   projectId?: string
+  areaId?: LifeAreaId
 }
 
 export type GoalMilestone = {
@@ -171,10 +174,83 @@ export type Thought = {
   order: number
 }
 
+export type AreaRule = {
+  id: string
+  areaId: LifeAreaId
+  title: string
+  order: number
+}
+
+export type AreaPlanItem = {
+  id: string
+  areaId: LifeAreaId
+  title: string
+  description?: string
+  targetValue: number
+  currentValue: number
+  unit: string
+}
+
+export type AreaHabit = {
+  id: string
+  areaId: LifeAreaId
+  title: string
+  description?: string
+  order: number
+  completions: Record<string, boolean>
+  softOnCycle?: boolean
+}
+
+export type PeriodicRule =
+  | { type: 'daily' }
+  | { type: 'weekly'; weekday: number }
+  | { type: 'biweekly'; weekday: number; anchorDate?: string }
+  | { type: 'everyNDays'; n: number; anchorDate?: string }
+  | { type: 'monthly'; day: number }
+  | { type: 'monthlyLastDay' }
+  | { type: 'nthWeekday'; n: number; weekday: number }
+  | { type: 'everyNMonths'; n: number; day: number; anchorMonth?: number }
+  | { type: 'yearly'; month: number; day: number }
+  | { type: 'timesPerMonth'; count: number }
+
+export type PeriodicHabit = {
+  id: string
+  areaId: LifeAreaId
+  title: string
+  description?: string
+  rule: PeriodicRule
+  completions: Record<string, boolean>
+  softOnCycle?: boolean
+}
+
+export type CycleSettings = {
+  enabled: boolean
+  lastStartDate?: string
+  cycleLength: number
+  periodLength: number
+}
+
+export type TeamEvent = {
+  id: string
+  personName: string
+  type: 'vacation' | 'trip' | 'shift' | 'cover' | 'other'
+  startDate: string
+  endDate: string
+  note?: string
+  coverHint?: string
+}
+
+export type BusinessRecurring = {
+  id: string
+  title: string
+  rule: PeriodicRule
+  completions: Record<string, boolean>
+}
+
 export type HomeWidget =
   | 'greeting'
   | 'thought'
-  | 'quote' // legacy alias
+  | 'quote'
   | 'progress'
   | 'morning'
   | 'habits'
@@ -184,6 +260,8 @@ export type HomeWidget =
   | 'stats'
   | 'life'
   | 'ai'
+  | 'areas'
+  | 'todayDue'
 
 export type LifeBalance = Record<LifeSphere, number>
 
@@ -200,6 +278,7 @@ export type UserSettings = {
   weekStartsOn: 0 | 1
   thoughtByDate: Record<string, string>
   thoughtCycleShown: string[]
+  cycle: CycleSettings
 }
 
 export type AppData = {
@@ -217,6 +296,12 @@ export type AppData = {
   dayTemplates: DayTemplate[]
   dayLogs: DayLog[]
   thoughts: Thought[]
+  areaRules: AreaRule[]
+  areaPlans: AreaPlanItem[]
+  areaHabits: AreaHabit[]
+  periodicHabits: PeriodicHabit[]
+  businessEvents: BusinessRecurring[]
+  teamEvents: TeamEvent[]
   lifeBalance: LifeBalance
   updatedAt: string
 }
@@ -246,3 +331,8 @@ export type PageId =
   | 'settings'
   | 'reminders'
   | 'thoughts'
+  | 'area-home'
+  | 'area-body'
+  | 'area-business'
+  | 'area-growth'
+  | 'area-family'

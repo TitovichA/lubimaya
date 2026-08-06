@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import { useAppStore } from '../lib/store'
 import { goalPercent } from '../lib/analytics'
+import { allAreaScores } from '../lib/areas'
 import { HABIT_COLORS } from '../lib/seed'
 import { Page, Card, Button, Modal, Input, TextArea, Empty, LinearProgress } from '../components/ui'
 import { AppIcon } from '../components/AppIcon'
 import type { LifeSphere } from '../types'
 
+// LifePage uses the same recharts + areas imports above
+
 const spheres: LifeSphere[] = ['здоровье', 'отношения', 'финансы', 'развитие', 'дом', 'бизнес', 'отдых']
-const sphereColors = ['#B8C9A8', '#D4B5A0', '#C4A574', '#C5B8D4', '#D4C5A8', '#A8C5D4', '#A8B5C4']
 
 export function ProjectsPage() {
   const data = useAppStore((s) => s.data)
@@ -170,44 +172,42 @@ export function ProjectDetailPage() {
 }
 
 export function LifePage() {
-  const balance = useAppStore((s) => s.data.lifeBalance)
-  const setLifeBalance = useAppStore((s) => s.setLifeBalance)
-  const chart = spheres.map((s, i) => ({ name: s, value: balance[s], color: sphereColors[i] }))
+  const data = useAppStore((s) => s.data)
+  const setPage = useAppStore((s) => s.setPage)
+  const scores = allAreaScores(data)
+  const chart = scores.map((s) => ({
+    name: s.label.replace('Мой ', '').replace('Моё ', ''),
+    value: s.value,
+    full: 100,
+  }))
 
   return (
-    <Page title="Панель жизни" subtitle="Баланс сфер — здоровье, отношения, финансы и другие.">
+    <Page
+      title="Панель развития жизни"
+      subtitle="Индекс по сферам: дом, тело, бизнес, саморазвитие и семья."
+    >
       <Card className="mb-6 p-5" hover={false}>
-        <div className="mx-auto h-72 max-w-md">
+        <div className="mx-auto h-80 max-w-lg">
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={chart} dataKey="value" nameKey="name" innerRadius={70} outerRadius={110} paddingAngle={3}>
-                {chart.map((e) => (
-                  <Cell key={e.name} fill={e.color} />
-                ))}
-              </Pie>
+            <RadarChart data={chart}>
+              <PolarGrid stroke="#E8DFD0" />
+              <PolarAngleAxis dataKey="name" tick={{ fill: '#7A746C', fontSize: 11 }} />
+              <Radar dataKey="value" stroke="#C4A574" fill="#C4A574" fillOpacity={0.25} />
               <Tooltip />
-            </PieChart>
+            </RadarChart>
           </ResponsiveContainer>
         </div>
       </Card>
-      <div className="space-y-4">
-        {spheres.map((s, i) => (
-          <Card key={s} className="p-4" hover={false}>
+      <div className="space-y-3">
+        {scores.map((s) => (
+          <Card key={s.id} className="p-4" onClick={() => setPage(s.pageId)}>
             <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="capitalize">{s}</span>
-              <span style={{ color: sphereColors[i] }}>{balance[s]}%</span>
+              <span>
+                {s.emoji} {s.label}
+              </span>
+              <span style={{ color: s.color }}>{s.value}%</span>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={balance[s]}
-              onChange={(e) => setLifeBalance({ ...balance, [s]: Number(e.target.value) })}
-              className="w-full accent-[#C4A574]"
-            />
-            <div className="mt-2">
-              <LinearProgress value={balance[s]} color={sphereColors[i]} />
-            </div>
+            <LinearProgress value={s.value} color={s.color} />
           </Card>
         ))}
       </div>

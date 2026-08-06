@@ -14,6 +14,14 @@ import type {
   HomeWidget,
   LifeBalance,
   Thought,
+  LifeAreaId,
+  AreaRule,
+  AreaPlanItem,
+  AreaHabit,
+  PeriodicHabit,
+  BusinessRecurring,
+  TeamEvent,
+  CycleSettings,
 } from '../types'
 import { createSeedData, todayKey } from './seed'
 import { createThoughtsSeed, pickThoughtForDate } from './thoughts'
@@ -84,6 +92,29 @@ type Store = {
   updateThought: (id: string, patch: Partial<Thought>) => void
   deleteThought: (id: string) => void
   reorderThoughts: (ids: string[]) => void
+  // areas
+  addAreaRule: (areaId: LifeAreaId, title: string) => void
+  updateAreaRule: (id: string, patch: Partial<AreaRule>) => void
+  deleteAreaRule: (id: string) => void
+  reorderAreaRules: (areaId: LifeAreaId, ids: string[]) => void
+  addAreaPlan: (item: Omit<AreaPlanItem, 'id'>) => void
+  updateAreaPlan: (id: string, patch: Partial<AreaPlanItem>) => void
+  deleteAreaPlan: (id: string) => void
+  addAreaHabit: (areaId: LifeAreaId, title: string) => void
+  toggleAreaHabit: (id: string, date?: string) => void
+  updateAreaHabit: (id: string, patch: Partial<AreaHabit>) => void
+  deleteAreaHabit: (id: string) => void
+  addPeriodicHabit: (item: Omit<PeriodicHabit, 'id' | 'completions'>) => void
+  togglePeriodicHabit: (id: string, date?: string) => void
+  updatePeriodicHabit: (id: string, patch: Partial<PeriodicHabit>) => void
+  deletePeriodicHabit: (id: string) => void
+  addBusinessEvent: (item: Omit<BusinessRecurring, 'id' | 'completions'>) => void
+  toggleBusinessEvent: (id: string, date?: string) => void
+  deleteBusinessEvent: (id: string) => void
+  addTeamEvent: (item: Omit<TeamEvent, 'id'>) => void
+  updateTeamEvent: (id: string, patch: Partial<TeamEvent>) => void
+  deleteTeamEvent: (id: string) => void
+  updateCycle: (patch: Partial<CycleSettings>) => void
   // sync
   enableSync: () => Promise<string>
   joinSync: (blobId: string) => Promise<void>
@@ -96,18 +127,26 @@ function migrateData(raw: AppData): AppData {
   const widgets = (raw.settings?.homeWidgets || seed.settings.homeWidgets).map((w) =>
     w === 'quote' ? 'thought' : w,
   ) as AppData['settings']['homeWidgets']
+  const mergedWidgets = [...new Set([...widgets, 'areas', 'todayDue'])] as HomeWidget[]
   return {
     ...seed,
     ...raw,
-    version: Math.max(raw.version || 1, 2),
+    version: Math.max(raw.version || 1, 3),
     settings: {
       ...seed.settings,
       ...raw.settings,
-      homeWidgets: widgets,
+      homeWidgets: mergedWidgets,
       thoughtByDate: raw.settings?.thoughtByDate || {},
       thoughtCycleShown: raw.settings?.thoughtCycleShown || [],
+      cycle: { ...seed.settings.cycle, ...raw.settings?.cycle },
     },
     thoughts: raw.thoughts?.length ? raw.thoughts : createThoughtsSeed(),
+    areaRules: raw.areaRules?.length ? raw.areaRules : seed.areaRules,
+    areaPlans: raw.areaPlans?.length ? raw.areaPlans : seed.areaPlans,
+    areaHabits: raw.areaHabits?.length ? raw.areaHabits : seed.areaHabits,
+    periodicHabits: raw.periodicHabits?.length ? raw.periodicHabits : seed.periodicHabits,
+    businessEvents: raw.businessEvents?.length ? raw.businessEvents : seed.businessEvents,
+    teamEvents: raw.teamEvents ?? seed.teamEvents,
   }
 }
 
@@ -305,6 +344,7 @@ export const useAppStore = create<Store>((set, get) => ({
       order: get().data.tasks.length,
       reminders: task.reminders ?? [],
       projectId: task.projectId,
+      areaId: task.areaId,
     }
     set({ data: { ...get().data, tasks: [...get().data.tasks, next] } })
     get().persist()
@@ -577,6 +617,180 @@ export const useAppStore = create<Store>((set, get) => ({
       },
     })
     get().persist()
+  },
+
+  addAreaRule: (areaId, title) => {
+    const rules = get().data.areaRules || []
+    const next: AreaRule = {
+      id: uuid(),
+      areaId,
+      title: title.trim(),
+      order: rules.filter((r) => r.areaId === areaId).length,
+    }
+    set({ data: { ...get().data, areaRules: [...rules, next] } })
+    get().persist()
+  },
+  updateAreaRule: (id, patch) => {
+    set({
+      data: {
+        ...get().data,
+        areaRules: get().data.areaRules.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+      },
+    })
+    get().persist()
+  },
+  deleteAreaRule: (id) => {
+    set({ data: { ...get().data, areaRules: get().data.areaRules.filter((r) => r.id !== id) } })
+    get().persist()
+  },
+  reorderAreaRules: (areaId, ids) => {
+    const others = get().data.areaRules.filter((r) => r.areaId !== areaId)
+    const map = new Map(get().data.areaRules.map((r) => [r.id, r]))
+    const reordered = ids.map((id, order) => ({ ...map.get(id)!, order }))
+    set({ data: { ...get().data, areaRules: [...others, ...reordered] } })
+    get().persist()
+  },
+  addAreaPlan: (item) => {
+    set({ data: { ...get().data, areaPlans: [...(get().data.areaPlans || []), { ...item, id: uuid() }] } })
+    get().persist()
+  },
+  updateAreaPlan: (id, patch) => {
+    set({
+      data: {
+        ...get().data,
+        areaPlans: get().data.areaPlans.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+      },
+    })
+    get().persist()
+  },
+  deleteAreaPlan: (id) => {
+    set({ data: { ...get().data, areaPlans: get().data.areaPlans.filter((p) => p.id !== id) } })
+    get().persist()
+  },
+  addAreaHabit: (areaId, title) => {
+    const habits = get().data.areaHabits || []
+    const next: AreaHabit = {
+      id: uuid(),
+      areaId,
+      title: title.trim(),
+      order: habits.filter((h) => h.areaId === areaId).length,
+      completions: {},
+    }
+    set({ data: { ...get().data, areaHabits: [...habits, next] } })
+    get().persist()
+  },
+  toggleAreaHabit: (id, date = todayKey()) => {
+    set({
+      data: {
+        ...get().data,
+        areaHabits: get().data.areaHabits.map((h) =>
+          h.id === id
+            ? { ...h, completions: { ...h.completions, [date]: !h.completions[date] } }
+            : h,
+        ),
+      },
+    })
+    get().persist()
+  },
+  updateAreaHabit: (id, patch) => {
+    set({
+      data: {
+        ...get().data,
+        areaHabits: get().data.areaHabits.map((h) => (h.id === id ? { ...h, ...patch } : h)),
+      },
+    })
+    get().persist()
+  },
+  deleteAreaHabit: (id) => {
+    set({ data: { ...get().data, areaHabits: get().data.areaHabits.filter((h) => h.id !== id) } })
+    get().persist()
+  },
+  addPeriodicHabit: (item) => {
+    set({
+      data: {
+        ...get().data,
+        periodicHabits: [...(get().data.periodicHabits || []), { ...item, id: uuid(), completions: {} }],
+      },
+    })
+    get().persist()
+  },
+  togglePeriodicHabit: (id, date = todayKey()) => {
+    set({
+      data: {
+        ...get().data,
+        periodicHabits: get().data.periodicHabits.map((h) =>
+          h.id === id
+            ? { ...h, completions: { ...h.completions, [date]: !h.completions[date] } }
+            : h,
+        ),
+      },
+    })
+    get().persist()
+  },
+  updatePeriodicHabit: (id, patch) => {
+    set({
+      data: {
+        ...get().data,
+        periodicHabits: get().data.periodicHabits.map((h) => (h.id === id ? { ...h, ...patch } : h)),
+      },
+    })
+    get().persist()
+  },
+  deletePeriodicHabit: (id) => {
+    set({
+      data: { ...get().data, periodicHabits: get().data.periodicHabits.filter((h) => h.id !== id) },
+    })
+    get().persist()
+  },
+  addBusinessEvent: (item) => {
+    set({
+      data: {
+        ...get().data,
+        businessEvents: [...(get().data.businessEvents || []), { ...item, id: uuid(), completions: {} }],
+      },
+    })
+    get().persist()
+  },
+  toggleBusinessEvent: (id, date = todayKey()) => {
+    set({
+      data: {
+        ...get().data,
+        businessEvents: get().data.businessEvents.map((e) =>
+          e.id === id
+            ? { ...e, completions: { ...e.completions, [date]: !e.completions[date] } }
+            : e,
+        ),
+      },
+    })
+    get().persist()
+  },
+  deleteBusinessEvent: (id) => {
+    set({
+      data: { ...get().data, businessEvents: get().data.businessEvents.filter((e) => e.id !== id) },
+    })
+    get().persist()
+  },
+  addTeamEvent: (item) => {
+    set({
+      data: { ...get().data, teamEvents: [...(get().data.teamEvents || []), { ...item, id: uuid() }] },
+    })
+    get().persist()
+  },
+  updateTeamEvent: (id, patch) => {
+    set({
+      data: {
+        ...get().data,
+        teamEvents: get().data.teamEvents.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      },
+    })
+    get().persist()
+  },
+  deleteTeamEvent: (id) => {
+    set({ data: { ...get().data, teamEvents: get().data.teamEvents.filter((e) => e.id !== id) } })
+    get().persist()
+  },
+  updateCycle: (patch) => {
+    get().updateSettings({ cycle: { ...get().data.settings.cycle, ...patch } })
   },
 
   enableSync: async () => {

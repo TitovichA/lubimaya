@@ -1,8 +1,10 @@
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
+import { Droplet } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import { dayProgress, getRitualDone, habitDoneToday } from '../lib/analytics'
-import { Page, Card, LinearProgress, SectionLabel, ProgressRing } from '../components/ui'
+import { LIFE_AREAS, isPeriodicDue, isPeriodDay, getCycleDay, areaMeta } from '../lib/areas'
+import { Page, Card, LinearProgress, SectionLabel, ProgressRing, Check } from '../components/ui'
 import { AppIcon } from '../components/AppIcon'
 
 const moodLabels = ['', 'Тяжело', 'Так себе', 'Спокойно', 'Хорошо', 'Отлично']
@@ -12,6 +14,9 @@ export function DayPage() {
   const date = useAppStore((s) => s.nav.selectedDate)
   const setPage = useAppStore((s) => s.setPage)
   const setDayMood = useAppStore((s) => s.setDayMood)
+  const togglePeriodicHabit = useAppStore((s) => s.togglePeriodicHabit)
+  const toggleBusinessEvent = useAppStore((s) => s.toggleBusinessEvent)
+  const toggleAreaHabit = useAppStore((s) => s.toggleAreaHabit)
 
   const dayLog = data.dayLogs.find((l) => l.date === date)
   const morningDone = getRitualDone(data, 'morning', date)
@@ -29,6 +34,11 @@ export function DayPage() {
   const progress = dayProgress(data, date)
   const thoughtId = data.settings.thoughtByDate?.[date]
   const thought = data.thoughts.find((t) => t.id === thoughtId)
+  const period = isPeriodDay(data.settings.cycle, date)
+  const cycleDay = getCycleDay(data.settings.cycle, date)
+  const duePeriodic = (data.periodicHabits || []).filter((h) => isPeriodicDue(h.rule, parseISO(date)))
+  const dueBusiness = (data.businessEvents || []).filter((e) => isPeriodicDue(e.rule, parseISO(date)))
+  const areaHabits = data.areaHabits || []
 
   return (
     <Page
@@ -60,11 +70,74 @@ export function DayPage() {
         </div>
       </Card>
 
+      {period && (
+        <Card className="mb-6 border border-[#E8C4C4]/60 bg-[#FBF1F1]/80 p-5" hover={false}>
+          <div className="flex items-start gap-3">
+            <Droplet className="mt-0.5 text-[#C47A7A]" size={18} />
+            <div>
+              <p className="font-display text-xl text-ink">День {cycleDay} цикла</p>
+              <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+                Сегодня можно снизить нагрузку. Забота о себе — тоже дисциплина.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {thought && (
         <Card className="mb-6 p-5" hover={false}>
           <p className="text-[11px] uppercase tracking-[0.16em] text-gold-deep">Мысль дня</p>
           <p className="mt-3 font-display text-xl leading-snug text-ink-soft">{thought.text}</p>
         </Card>
+      )}
+
+      {(duePeriodic.length > 0 || dueBusiness.length > 0 || areaHabits.length > 0) && (
+        <>
+          <SectionLabel>Сферы жизни</SectionLabel>
+          <Card className="mb-6 divide-y divide-sand/50 overflow-hidden" hover={false}>
+            {dueBusiness.map((e) => (
+              <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+                <Check
+                  checked={!!e.completions[date]}
+                  onChange={() => toggleBusinessEvent(e.id, date)}
+                  color="#C4A574"
+                />
+                <span className="text-sm">💼 {e.title}</span>
+              </div>
+            ))}
+            {duePeriodic.map((h) => {
+              const meta = areaMeta(h.areaId)
+              return (
+                <div key={h.id} className="flex items-center gap-3 px-4 py-3">
+                  <Check
+                    checked={!!h.completions[date]}
+                    onChange={() => togglePeriodicHabit(h.id, date)}
+                    color={meta.color}
+                  />
+                  <span className="text-sm">
+                    {meta.emoji} {h.title}
+                  </span>
+                </div>
+              )
+            })}
+            {areaHabits.map((h) => {
+              const meta = areaMeta(h.areaId)
+              return (
+                <div key={h.id} className="flex items-center gap-3 px-4 py-3">
+                  <Check
+                    checked={!!h.completions[date]}
+                    onChange={() => toggleAreaHabit(h.id, date)}
+                    color={meta.color}
+                  />
+                  <span className="text-sm">
+                    {meta.emoji} {h.title}
+                    {period && h.softOnCycle ? ' · мягкая' : ''}
+                  </span>
+                </div>
+              )
+            })}
+          </Card>
+        </>
       )}
 
       <SectionLabel>☀ Утренний ритуал</SectionLabel>
@@ -107,12 +180,18 @@ export function DayPage() {
       <SectionLabel>📝 Задачи</SectionLabel>
       <Card className="mb-6 divide-y divide-sand/50 overflow-hidden" hover={false}>
         {tasks.length ? (
-          tasks.map((t) => (
-            <div key={t.id} className="flex items-center gap-3 px-4 py-3 text-sm">
-              <span className={t.done ? 'text-gold-deep' : 'text-ink-muted'}>{t.done ? '✓' : '○'}</span>
-              <span className={t.done ? 'text-ink-muted line-through' : 'text-ink'}>{t.title}</span>
-            </div>
-          ))
+          tasks.map((t) => {
+            const area = t.areaId ? LIFE_AREAS.find((a) => a.id === t.areaId) : null
+            return (
+              <div key={t.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                <span className={t.done ? 'text-gold-deep' : 'text-ink-muted'}>{t.done ? '✓' : '○'}</span>
+                <span className={t.done ? 'text-ink-muted line-through' : 'text-ink'}>
+                  {area?.emoji ? `${area.emoji} ` : ''}
+                  {t.title}
+                </span>
+              </div>
+            )
+          })
         ) : (
           <p className="px-4 py-4 text-sm text-ink-muted">Нет задач на этот день</p>
         )}

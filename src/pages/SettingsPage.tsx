@@ -12,12 +12,27 @@ import {
   Search as SearchIcon,
   FileText,
   Layers,
+  Building2,
+  Flower2,
+  Briefcase,
+  BookOpen,
+  Heart,
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import { searchAll, generateInsights, periodAverage, bestHabitStreaks, dayProgress } from '../lib/analytics'
+import { isPeriodicDue, areaMeta } from '../lib/areas'
+import { todayKey } from '../lib/seed'
 import { exportJson, importJsonFile } from '../lib/sync'
 import type { HomeWidget, PageId } from '../types'
 import { Page, Card, Button, Input, Empty, SectionLabel } from '../components/ui'
+
+const sphereLinks: { id: PageId; label: string; icon: typeof Sunrise; desc: string }[] = [
+  { id: 'area-home', label: 'Мой дом', icon: Building2, desc: 'Правила, привычки, 100-дневка' },
+  { id: 'area-body', label: 'Моё тело', icon: Flower2, desc: 'Здоровье и цикл' },
+  { id: 'area-business', label: 'Мой бизнес', icon: Briefcase, desc: 'События и команда' },
+  { id: 'area-growth', label: 'Саморазвитие', icon: BookOpen, desc: 'Рост и обучение' },
+  { id: 'area-family', label: 'Моя семья', icon: Heart, desc: 'Близость и ритуалы' },
+]
 
 const moreLinks: { id: PageId; label: string; icon: typeof Sunrise; desc: string }[] = [
   { id: 'morning', label: 'Утренний ритуал', icon: Sunrise, desc: 'Начало дня' },
@@ -26,7 +41,7 @@ const moreLinks: { id: PageId; label: string; icon: typeof Sunrise; desc: string
   { id: 'thoughts', label: 'Мысли', icon: Sparkles, desc: 'Коллекция мыслей дня' },
   { id: 'notes', label: 'Заметки', icon: NotebookPen, desc: 'Мысли и файлы' },
   { id: 'projects', label: 'Проекты', icon: LayoutGrid, desc: 'Жизненные направления' },
-  { id: 'life', label: 'Панель жизни', icon: CircleDot, desc: 'Баланс сфер' },
+  { id: 'life', label: 'Панель развития', icon: CircleDot, desc: 'Индекс по сферам' },
   { id: 'ai', label: 'ИИ-помощник', icon: Sparkles, desc: 'Анализ и планы' },
   { id: 'templates', label: 'Шаблоны дней', icon: Layers, desc: 'Рабочий, выходной...' },
   { id: 'reviews', label: 'Обзоры', icon: FileText, desc: 'Неделя и месяц' },
@@ -39,6 +54,24 @@ export function MoreHubPage() {
   const setPage = useAppStore((s) => s.setPage)
   return (
     <Page title="Ещё" subtitle="Все разделы системы жизни.">
+      <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-ink-muted">Сферы жизни</p>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2">
+        {sphereLinks.map((item) => {
+          const Icon = item.icon
+          return (
+            <Card key={item.id} className="flex items-center gap-4 p-4" onClick={() => setPage(item.id)}>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sand/50">
+                <Icon size={18} strokeWidth={1.5} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-ink">{item.label}</p>
+                <p className="text-xs text-ink-muted">{item.desc}</p>
+              </div>
+            </Card>
+          )
+        })}
+      </div>
+      <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-ink-muted">Разделы</p>
       <div className="grid gap-3 sm:grid-cols-2">
         {moreLinks.map((item) => {
           const Icon = item.icon
@@ -200,10 +233,34 @@ export function RemindersPage() {
   data.goals.forEach((g) =>
     g.reminders.filter((r) => r.enabled).forEach((r) => items.push({ time: r.time, label: g.title, source: 'Цель' })),
   )
+
+  const today = todayKey()
+  ;(data.periodicHabits || [])
+    .filter((h) => isPeriodicDue(h.rule) && !h.completions[today])
+    .forEach((h) =>
+      items.push({
+        time: '09:00',
+        label: h.title,
+        source: `${areaMeta(h.areaId).emoji} Периодическая`,
+      }),
+    )
+  ;(data.businessEvents || [])
+    .filter((e) => isPeriodicDue(e.rule) && !e.completions[today])
+    .forEach((e) => items.push({ time: '10:00', label: e.title, source: '💼 Бизнес' }))
+  ;(data.teamEvents || []).forEach((e) => {
+    if (today >= e.startDate && today <= e.endDate) {
+      items.push({
+        time: '08:30',
+        label: e.coverHint || `Замена: ${e.personName}`,
+        source: '💼 Команда',
+      })
+    }
+  })
+
   items.sort((a, b) => a.time.localeCompare(b.time))
 
   return (
-    <Page title="Напоминания" subtitle="Все оповещения по привычкам, задачам и целям.">
+    <Page title="Напоминания" subtitle="Все оповещения по привычкам, задачам, целям и сферам.">
       <Card className="divide-y divide-sand/50 overflow-hidden" hover={false}>
         {items.map((i, idx) => (
           <div key={idx} className="flex items-center gap-4 px-5 py-4">
@@ -214,7 +271,11 @@ export function RemindersPage() {
             </div>
           </div>
         ))}
-        {!items.length && <div className="p-6"><Empty title="Нет активных напоминаний" /></div>}
+        {!items.length && (
+          <div className="p-6">
+            <Empty title="Нет активных напоминаний" />
+          </div>
+        )}
       </Card>
     </Page>
   )
@@ -224,6 +285,8 @@ const allWidgets: { id: HomeWidget; label: string }[] = [
   { id: 'greeting', label: 'Приветствие' },
   { id: 'thought', label: 'Мысль дня' },
   { id: 'progress', label: 'Прогресс дня' },
+  { id: 'areas', label: 'Панель развития жизни' },
+  { id: 'todayDue', label: 'Сегодня по сферам' },
   { id: 'morning', label: 'Утро' },
   { id: 'habits', label: 'Привычки' },
   { id: 'evening', label: 'Вечер' },

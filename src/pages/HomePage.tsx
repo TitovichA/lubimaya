@@ -10,9 +10,11 @@ import {
   periodAverage,
   generateInsights,
 } from '../lib/analytics'
-import { Card, ProgressRing, LinearProgress, SectionLabel } from '../components/ui'
+import { Card, ProgressRing, LinearProgress, SectionLabel, Check } from '../components/ui'
 import { AppIcon } from '../components/AppIcon'
 import { ThoughtOfDayCard } from './ThoughtsPage'
+import { allAreaScores, duePeriodicToday, LIFE_AREAS, isPeriodicDue } from '../lib/areas'
+import { parseISO, isWithinInterval } from 'date-fns'
 
 const fade = {
   initial: { opacity: 0, y: 12 },
@@ -29,6 +31,25 @@ export function HomePage() {
   const todayTasks = data.tasks.filter((t) => t.date === todayKey()).sort((a, b) => a.order - b.order)
   const week = periodAverage(data, 7)
   const insights = generateInsights(data)
+  const scores = allAreaScores(data)
+  const duePeriodic = duePeriodicToday(data)
+  const dueBusiness = (data.businessEvents || []).filter(
+    (e) => isPeriodicDue(e.rule, parseISO(todayKey())) && !e.completions[todayKey()],
+  )
+  const covers = (data.teamEvents || []).filter((e) => {
+    try {
+      return isWithinInterval(parseISO(todayKey()), {
+        start: parseISO(e.startDate),
+        end: parseISO(e.endDate),
+      })
+    } catch {
+      return false
+    }
+  })
+  const togglePeriodicHabit = useAppStore((s) => s.togglePeriodicHabit)
+  const toggleBusinessEvent = useAppStore((s) => s.toggleBusinessEvent)
+  const toggleAreaHabit = useAppStore((s) => s.toggleAreaHabit)
+  const areaHabitsToday = (data.areaHabits || []).filter((h) => !h.completions[todayKey()])
   const hidden = new Set(
     data.settings.hiddenWidgets.map((w) => (w === 'quote' ? 'thought' : w)),
   )
@@ -72,6 +93,67 @@ export function HomePage() {
             </div>
           </Card>
         </motion.div>
+      )}
+
+      {widgets.includes('areas') && (
+        <section className="mb-8">
+          <SectionLabel>Панель развития жизни</SectionLabel>
+          <div className="grid gap-3 sm:grid-cols-5">
+            {scores.map((s) => (
+              <Card key={s.id} className="p-4 text-center" onClick={() => setPage(s.pageId)}>
+                <div className="text-xl">{s.emoji}</div>
+                <p className="mt-2 text-xs text-ink-muted">{s.label}</p>
+                <p className="mt-1 font-display text-2xl" style={{ color: s.color }}>
+                  {s.value}%
+                </p>
+                <div className="mt-2">
+                  <LinearProgress value={s.value} color={s.color} />
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {widgets.includes('todayDue') && (duePeriodic.length > 0 || dueBusiness.length > 0 || covers.length > 0 || areaHabitsToday.length > 0) && (
+        <section className="mb-8">
+          <SectionLabel>Сегодня по сферам</SectionLabel>
+          <Card className="divide-y divide-sand/50 overflow-hidden" hover={false}>
+            {covers.map((e) => (
+              <div key={e.id} className="px-5 py-3 text-sm text-ink-soft">
+                💼 {e.coverHint || `Замена: ${e.personName}`}
+              </div>
+            ))}
+            {dueBusiness.map((e) => (
+              <div key={e.id} className="flex items-center gap-3 px-5 py-3">
+                <Check checked={false} onChange={() => toggleBusinessEvent(e.id)} color="#C4A574" />
+                <span className="text-sm">💼 {e.title}</span>
+              </div>
+            ))}
+            {duePeriodic.map((h) => {
+              const meta = LIFE_AREAS.find((a) => a.id === h.areaId)!
+              return (
+                <div key={h.id} className="flex items-center gap-3 px-5 py-3">
+                  <Check checked={false} onChange={() => togglePeriodicHabit(h.id)} color={meta.color} />
+                  <span className="text-sm">
+                    {meta.emoji} {h.title}
+                  </span>
+                </div>
+              )
+            })}
+            {areaHabitsToday.slice(0, 6).map((h) => {
+              const meta = LIFE_AREAS.find((a) => a.id === h.areaId)!
+              return (
+                <div key={h.id} className="flex items-center gap-3 px-5 py-3">
+                  <Check checked={false} onChange={() => toggleAreaHabit(h.id)} color={meta.color} />
+                  <span className="text-sm">
+                    {meta.emoji} {h.title}
+                  </span>
+                </div>
+              )
+            })}
+          </Card>
+        </section>
       )}
 
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
@@ -138,7 +220,9 @@ export function HomePage() {
             {todayTasks.length === 0 && (
               <p className="p-5 text-sm text-ink-muted">На сегодня задач нет — можно добавить.</p>
             )}
-            {todayTasks.slice(0, 5).map((t) => (
+            {todayTasks.slice(0, 5).map((t) => {
+              const area = t.areaId ? LIFE_AREAS.find((a) => a.id === t.areaId) : null
+              return (
               <button
                 key={t.id}
                 onClick={() => setPage('tasks')}
@@ -146,14 +230,15 @@ export function HomePage() {
               >
                 <span
                   className={`h-2.5 w-2.5 rounded-full ${t.done ? 'opacity-40' : ''}`}
-                  style={{ background: t.color }}
+                  style={{ background: area?.color || t.color }}
                 />
                 <span className={`flex-1 text-sm ${t.done ? 'text-ink-muted line-through' : 'text-ink'}`}>
+                  {area?.emoji ? `${area.emoji} ` : ''}
                   {t.title}
                 </span>
                 <span className="text-[10px] uppercase tracking-wider text-ink-muted">{t.priority}</span>
               </button>
-            ))}
+            )})}
             <button onClick={() => setPage('tasks')} className="w-full px-5 py-3 text-left text-sm text-gold-deep">
               Все задачи →
             </button>
@@ -202,12 +287,15 @@ export function HomePage() {
 
       {widgets.includes('life') && (
         <section className="mb-8">
-          <SectionLabel>Панель жизни</SectionLabel>
+          <SectionLabel>Панель развития жизни</SectionLabel>
           <Card className="p-5" onClick={() => setPage('life')}>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(data.lifeBalance).map(([k, v]) => (
-                <div key={k} className="rounded-2xl bg-cream px-3 py-2 text-xs text-ink-soft">
-                  {k} · {v}%
+            <div className="grid grid-cols-5 gap-2">
+              {scores.map((s) => (
+                <div key={s.id} className="text-center">
+                  <div className="text-lg">{s.emoji}</div>
+                  <p className="mt-1 font-display text-lg" style={{ color: s.color }}>
+                    {s.value}%
+                  </p>
                 </div>
               ))}
             </div>

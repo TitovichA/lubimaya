@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '../lib/store'
 import { dayProgress } from '../lib/analytics'
 import { todayKey } from '../lib/seed'
+import { isPeriodicDue, isPeriodDay } from '../lib/areas'
 import { Page, Card, Button } from '../components/ui'
 
 export function CalendarPage() {
@@ -68,11 +69,15 @@ export function CalendarPage() {
             const val = dayProgress(data, key)
             const isToday = key === todayKey()
             const selected = key === selectedDate && !isToday
+            const hasDue =
+              (data.periodicHabits || []).some((h) => isPeriodicDue(h.rule, d)) ||
+              (data.businessEvents || []).some((e) => isPeriodicDue(e.rule, d))
+            const period = isPeriodDay(data.settings.cycle, key)
             return (
               <button
                 key={key}
                 onClick={() => openDay(key)}
-                className={`aspect-square rounded-2xl p-1 text-sm transition ${
+                className={`relative aspect-square rounded-2xl p-1 text-sm transition ${
                   isToday
                     ? 'bg-sky shadow-soft ring-1 ring-[#C4A574]/70 text-ink'
                     : selected
@@ -81,16 +86,20 @@ export function CalendarPage() {
                 } ${!isSameMonth(d, cursor) ? 'opacity-30' : ''}`}
               >
                 <div className="font-medium">{format(d, 'd')}</div>
-                <div
-                  className="mx-auto mt-1 h-1 w-1 rounded-full"
-                  style={{
-                    background: isToday
-                      ? '#C4A574'
-                      : selected
-                        ? '#E8D5B5'
-                        : `rgba(196,165,116,${0.15 + val / 120})`,
-                  }}
-                />
+                <div className="mx-auto mt-1 flex items-center justify-center gap-0.5">
+                  <div
+                    className="h-1 w-1 rounded-full"
+                    style={{
+                      background: isToday
+                        ? '#C4A574'
+                        : selected
+                          ? '#E8D5B5'
+                          : `rgba(196,165,116,${0.15 + val / 120})`,
+                    }}
+                  />
+                  {hasDue && <div className="h-1 w-1 rounded-full bg-gold" />}
+                  {period && <div className="h-1 w-1 rounded-full bg-[#C47A7A]/80" />}
+                </div>
               </button>
             )
           })}
