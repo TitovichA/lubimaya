@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addDays, parseISO, format } from 'date-fns'
-import { ru } from 'date-fns/locale'
 import { useAppStore } from '../lib/store'
 import { formatRuDate, formatRuWeekday, todayKey } from '../lib/seed'
 import {
@@ -68,7 +67,6 @@ export function HomePage() {
       if (aDone !== bDone) return aDone ? 1 : -1
       return (a.order ?? 0) - (b.order ?? 0)
     })
-  const plansDone = dayTasks.filter((p) => p.targetValue > 0 && p.currentValue >= p.targetValue).length
   const week = Math.round(
     Array.from({ length: 7 }, (_, i) =>
       areasDayProgress(data, format(addDays(viewDateObj, i - 6), 'yyyy-MM-dd')),
