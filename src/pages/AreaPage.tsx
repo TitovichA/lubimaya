@@ -575,11 +575,7 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
               label={`${areaGoalPct}%`}
             />
             <div className="min-w-0 flex-1">
-              <h3 className="font-display text-2xl text-ink">{areaGoal.title}</h3>
-              {areaGoal.description && (
-                <p className="mt-1 text-sm leading-relaxed text-ink-soft">{areaGoal.description}</p>
-              )}
-              <p className="mt-1 text-sm text-ink-muted">
+              <p className="text-sm text-ink-muted">
                 {plansDone} / {plans.length} пунктов плана
               </p>
               <p className="mt-1 text-xs text-ink-muted">
@@ -590,6 +586,14 @@ export function AreaPage({ areaId }: { areaId: LifeAreaId }) {
               </div>
             </div>
           </div>
+          <h3 className="mt-5 w-full text-justify font-display text-2xl leading-snug text-ink hyphens-auto">
+            {areaGoal.title}
+          </h3>
+          {areaGoal.description && (
+            <p className="mt-2 w-full text-justify text-sm leading-relaxed text-ink-soft hyphens-auto">
+              {areaGoal.description}
+            </p>
+          )}
         </Card>
       ) : (
         <Card className="mb-6 p-6" onClick={() => openGoalModal()}>

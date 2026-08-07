@@ -6,15 +6,12 @@ import { ru } from 'date-fns/locale'
 import { useAppStore } from '../lib/store'
 import { formatRuDate, formatRuWeekday, todayKey } from '../lib/seed'
 import {
-  dayProgress,
   getRitualDone,
   ritualProgress,
-  periodAverage,
   generateInsights,
 } from '../lib/analytics'
 import {
   challengeDayNumber,
-  challengeOverallProgress,
   challengeRemaining,
   formatChallengeEndRu,
   isChallengeComplete,
@@ -28,8 +25,8 @@ import { ChallengeBadge } from '../components/ChallengeBadge'
 import { RemindersHomeBlock } from '../components/RemindersHomeBlock'
 import { LifeAreaRings } from '../components/LifeAreaRings'
 import { useEffectiveTheme } from '../components/ThemeToggle'
+import { LIFE_AREAS, allAreaScores, areaPlansProgress, areasDayProgress } from '../lib/areas'
 import { ThoughtOfDayCard } from './ThoughtsPage'
-import { allAreaScores, LIFE_AREAS } from '../lib/areas'
 import {
   isSunday,
   nextSundayWaitingLabel,
@@ -53,8 +50,8 @@ export function HomePage() {
   const isToday = viewDate === today
   const viewDateObj = parseISO(viewDate)
 
-  const progress = dayProgress(data, viewDate)
-  const challengeProgress = challengeOverallProgress(data, viewDate)
+  const progress = areasDayProgress(data, viewDate)
+  const challengeProgress = areaPlansProgress(data)
   const dayNum = challengeDayNumber(challenge, viewDate)
   const remaining = challengeRemaining(challenge, today)
   const complete = isChallengeComplete(challenge, today)
@@ -63,8 +60,20 @@ export function HomePage() {
   const sundayActive = isSunday(viewDate)
   const sundayProg = sundayRitualProgress(data, viewDate)
   const sundayWaiting = nextSundayWaitingLabel(viewDate)
-  const dayTasks = data.tasks.filter((t) => t.date === viewDate).sort((a, b) => a.order - b.order)
-  const week = periodAverage(data, 7)
+  const dayTasks = (data.areaPlans || [])
+    .slice()
+    .sort((a, b) => {
+      const aDone = a.targetValue > 0 && a.currentValue >= a.targetValue
+      const bDone = b.targetValue > 0 && b.currentValue >= b.targetValue
+      if (aDone !== bDone) return aDone ? 1 : -1
+      return (a.order ?? 0) - (b.order ?? 0)
+    })
+  const plansDone = dayTasks.filter((p) => p.targetValue > 0 && p.currentValue >= p.targetValue).length
+  const week = Math.round(
+    Array.from({ length: 7 }, (_, i) =>
+      areasDayProgress(data, format(addDays(viewDateObj, i - 6), 'yyyy-MM-dd')),
+    ).reduce((a, b) => a + b, 0) / 7,
+  )
   const insights = generateInsights(data)
   const scores = allAreaScores(data, viewDate)
   const hidden = new Set(
@@ -213,7 +222,7 @@ export function HomePage() {
               </p>
               <p className="mt-2 font-display text-3xl text-ink">{progress}%</p>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-                Ритуалы, привычки, задачи и дела дня
+                Ежедневные привычки: дом, тело, бизнес, саморазвитие, семья
               </p>
               <p className="mt-3 text-xs text-ink-muted">Неделя в среднем — {week}%</p>
             </div>
@@ -233,7 +242,7 @@ export function HomePage() {
               </p>
               <p className="mt-2 font-display text-3xl text-ink">{challengeProgress}%</p>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-                Цели, привычки, планы сфер и дни пути
+                План 100-дневки по всем сферам
               </p>
               <p className="mt-3 text-xs text-gold-deep">до {formatChallengeEndRu(challenge)}</p>
             </div>
@@ -310,38 +319,41 @@ export function HomePage() {
 
       {widgets.includes('tasks') && (
         <section className="mb-8">
-          <SectionLabel>
-            {isToday
-              ? '📝 Задачи на сегодня'
-              : `📝 Задачи · ${format(viewDateObj, 'd MMM', { locale: ru })}`}
-          </SectionLabel>
+          <SectionLabel>📝 План 100-дневки</SectionLabel>
           <Card className="divide-y divide-sand/60 overflow-hidden" hover={false}>
             {dayTasks.length === 0 && (
-              <p className="p-5 text-sm text-ink-muted">
-                {isToday ? 'На сегодня задач нет — можно добавить.' : 'На этот день задач нет.'}
-              </p>
+              <p className="p-5 text-sm text-ink-muted">Пунктов плана пока нет — добавьте в сферах.</p>
             )}
-            {dayTasks.slice(0, 5).map((t) => {
-              const area = t.areaId ? LIFE_AREAS.find((a) => a.id === t.areaId) : null
+            {dayTasks.slice(0, 5).map((p) => {
+              const area = LIFE_AREAS.find((a) => a.id === p.areaId)
+              const done = p.targetValue > 0 && p.currentValue >= p.targetValue
               return (
-              <button
-                key={t.id}
-                onClick={() => setPage('tasks')}
-                className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-cream-soft/80"
-              >
-                <span
-                  className={`h-2.5 w-2.5 rounded-full ${t.done ? 'opacity-40' : ''}`}
-                  style={{ background: area?.color || t.color }}
-                />
-                <span className={`flex-1 text-sm ${t.done ? 'text-ink-muted line-through' : 'text-ink'}`}>
-                  {area?.emoji ? `${area.emoji} ` : ''}
-                  {t.title}
-                </span>
-                <span className="text-[10px] uppercase tracking-wider text-ink-muted">{t.priority}</span>
-              </button>
-            )})}
-            <button onClick={() => setPage('tasks')} className="w-full px-5 py-3 text-left text-sm text-gold-deep">
-              Все задачи →
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPage('tasks')}
+                  className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-cream-soft/80"
+                >
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${done ? 'opacity-40' : ''}`}
+                    style={{ background: area?.color || '#C4A574' }}
+                  />
+                  <span className={`flex-1 text-sm ${done ? 'text-ink-muted line-through' : 'text-ink'}`}>
+                    {area?.emoji ? `${area.emoji} ` : ''}
+                    {p.title}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wider text-ink-muted">
+                    {p.currentValue}/{p.targetValue}
+                  </span>
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => setPage('tasks')}
+              className="w-full px-5 py-3 text-left text-sm text-gold-deep"
+            >
+              Весь план →
             </button>
           </Card>
         </section>
@@ -354,7 +366,7 @@ export function HomePage() {
             <Stat label="Сегодня" value={`${progress}%`} />
             <Stat label="Неделя" value={`${week}%`} />
             <Stat label="Утро" value={`${morningDone}/${data.morningRitual.length}`} />
-            <Stat label="Задачи" value={`${dayTasks.filter((t) => t.done).length}/${dayTasks.length}`} />
+            <Stat label="План" value={`${challengeProgress}%`} />
           </Card>
         </section>
       )}

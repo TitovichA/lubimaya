@@ -207,6 +207,11 @@ export function searchAll(data: AppData, query: string) {
       results.push({ type: 'task', id: t.id, title: t.title, subtitle: t.category })
     }
   })
+  ;(data.areaPlans || []).forEach((p) => {
+    if (p.title.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q)) {
+      results.push({ type: 'area-plan', id: p.id, title: p.title, subtitle: p.areaId })
+    }
+  })
   ;(data.areaHabits || []).forEach((h) => {
     if (h.title.toLowerCase().includes(q) || h.description?.toLowerCase().includes(q)) {
       results.push({ type: 'area-habit', id: h.id, title: h.title, subtitle: h.areaId })

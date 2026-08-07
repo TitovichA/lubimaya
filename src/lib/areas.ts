@@ -278,6 +278,59 @@ export function areaScore(data: AppData, areaId: LifeAreaId, date = todayKey()):
   return Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 100)
 }
 
+/** Процент дня по всем сферам: привычки разделов + дела бизнеса на дату */
+export function areasDayProgress(data: AppData, date = todayKey()): number {
+  const period = isPeriodDay(data.settings.cycle, date)
+  const rates: number[] = []
+
+  for (const area of LIFE_AREAS) {
+    const habits = (data.areaHabits || [])
+      .filter((h) => h.areaId === area.id)
+      .filter((h) => !(period && h.softOnCycle && !h.completions[date]))
+    let done = habits.filter((h) => h.completions[date]).length
+    let total = habits.length
+
+    if (area.id === 'business') {
+      const dueBiz = (data.businessEvents || []).filter((e) => isPeriodicDue(e.rule, parseISO(date)))
+      done += dueBiz.filter((e) => e.completions[date]).length
+      total += dueBiz.length
+    }
+
+    if (total > 0) rates.push(done / total)
+  }
+
+  if (!rates.length) return 0
+  return Math.round((rates.reduce((a, b) => a + b, 0) / rates.length) * 100)
+}
+
+/** Суммарный % плана 100-дневки по всем пунктам всех сфер */
+export function areaPlansProgress(data: AppData): number {
+  const plans = data.areaPlans || []
+  if (!plans.length) return 0
+  const sum = plans.reduce(
+    (s, p) => s + (p.targetValue > 0 ? Math.min(100, (p.currentValue / p.targetValue) * 100) : 0),
+    0,
+  )
+  return Math.round(sum / plans.length)
+}
+
+/** Средний % плана 100-дневки: сначала по каждой сфере, затем среднее по сферам */
+export function areasPlansBySphereProgress(data: AppData): number {
+  const rates: number[] = []
+  for (const area of LIFE_AREAS) {
+    const plans = (data.areaPlans || []).filter((p) => p.areaId === area.id)
+    if (!plans.length) continue
+    const avg =
+      plans.reduce(
+        (s, p) => s + (p.targetValue > 0 ? Math.min(1, p.currentValue / p.targetValue) : 0),
+        0,
+      ) / plans.length
+    rates.push(avg)
+  }
+  if (!rates.length) return 0
+  return Math.round((rates.reduce((a, b) => a + b, 0) / rates.length) * 100)
+}
+
 export function allAreaScores(data: AppData, date = todayKey()) {
   return LIFE_AREAS.map((a) => ({
     ...a,

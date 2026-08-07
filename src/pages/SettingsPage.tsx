@@ -99,7 +99,7 @@ export function SearchPage() {
       if (goal?.areaId) setPage(areaMeta(goal.areaId).pageId)
       else setPage('home')
     }
-    else if (type === 'task') setPage('tasks')
+    else if (type === 'task' || type === 'area-plan') setPage('tasks')
     else if (type === 'morning') setPage('morning')
     else if (type === 'evening') setPage('evening')
     else if (type === 'area-habit') {
@@ -230,7 +230,7 @@ const allWidgets: { id: HomeWidget; label: string }[] = [
   { id: 'morning', label: 'Утро' },
   { id: 'evening', label: 'Вечер' },
   { id: 'sunday', label: 'Воскресенье' },
-  { id: 'tasks', label: 'Задачи' },
+  { id: 'tasks', label: 'План 100-дневки' },
   { id: 'stats', label: 'Статистика' },
   { id: 'life', label: 'Колесо баланса' },
   { id: 'ai', label: 'ИИ' },
