@@ -1,13 +1,12 @@
 <?php
 /**
  * Auth API — пароль только из .env на сервере (не в клиенте).
+ * Совместимо с PHP 7.4+.
  *
  * POST action=login  { login, password }
  * POST action=logout
  * GET  action=status
  */
-
-declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -18,27 +17,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-function load_env(string $path): array
+function auth_starts_with($haystack, $needle)
+{
+    return $needle === '' || strpos($haystack, $needle) === 0;
+}
+
+function auth_ends_with($haystack, $needle)
+{
+    if ($needle === '') {
+        return true;
+    }
+    $len = strlen($needle);
+    return $len === 0 || substr($haystack, -$len) === $needle;
+}
+
+function auth_contains($haystack, $needle)
+{
+    return $needle === '' || strpos($haystack, $needle) !== false;
+}
+
+function load_env($path)
 {
     if (!is_file($path) || !is_readable($path)) {
         return [];
     }
     $vars = [];
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return [];
+    }
     foreach ($lines as $line) {
         $line = trim($line);
-        if ($line === '' || str_starts_with($line, '#')) {
+        if ($line === '' || auth_starts_with($line, '#')) {
             continue;
         }
-        if (!str_contains($line, '=')) {
+        if (!auth_contains($line, '=')) {
             continue;
         }
-        [$k, $v] = explode('=', $line, 2);
-        $k = trim($k);
-        $v = trim($v);
+        $parts = explode('=', $line, 2);
+        $k = trim($parts[0]);
+        $v = isset($parts[1]) ? trim($parts[1]) : '';
         if (
-            (str_starts_with($v, '"') && str_ends_with($v, '"')) ||
-            (str_starts_with($v, "'") && str_ends_with($v, "'"))
+            (auth_starts_with($v, '"') && auth_ends_with($v, '"')) ||
+            (auth_starts_with($v, "'") && auth_ends_with($v, "'"))
         ) {
             $v = substr($v, 1, -1);
         }
@@ -47,13 +68,14 @@ function load_env(string $path): array
     return $vars;
 }
 
-function env_path(): string
+function env_path()
 {
-    // Предпочтительно вне public_html: ../.env от api/ → public_html/.env? нет:
     // api = public_html/api → ../../.env = рядом с public_html
+    $publicHtml = dirname(__DIR__);
+    $siteRoot = dirname($publicHtml);
     $candidates = [
-        dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . '.env', // site_root/.env
-        dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env',    // public_html/.env
+        $siteRoot . DIRECTORY_SEPARATOR . '.env',
+        $publicHtml . DIRECTORY_SEPARATOR . '.env',
         __DIR__ . DIRECTORY_SEPARATOR . '.env',
     ];
     foreach ($candidates as $p) {
@@ -64,24 +86,24 @@ function env_path(): string
     return $candidates[0];
 }
 
-function attempts_path(): string
+function attempts_path()
 {
     $dir = dirname(env_path());
     return $dir . DIRECTORY_SEPARATOR . '.auth_attempts.json';
 }
 
-function read_attempts(): array
+function read_attempts()
 {
     $path = attempts_path();
     if (!is_file($path)) {
         return [];
     }
     $raw = file_get_contents($path);
-    $data = json_decode($raw ?: '[]', true);
+    $data = json_decode($raw ? $raw : '[]', true);
     return is_array($data) ? $data : [];
 }
 
-function write_attempts(array $data): void
+function write_attempts($data)
 {
     $path = attempts_path();
     $dir = dirname($path);
@@ -92,12 +114,12 @@ function write_attempts(array $data): void
     @chmod($path, 0600);
 }
 
-function client_ip(): string
+function client_ip()
 {
-    return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
 }
 
-function json_out(array $payload, int $code = 200): void
+function json_out($payload, $code = 200)
 {
     http_response_code($code);
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);
@@ -105,10 +127,10 @@ function json_out(array $payload, int $code = 200): void
 }
 
 $env = load_env(env_path());
-$appLogin = $env['APP_LOGIN'] ?? '';
-$appPassword = $env['APP_PASSWORD'] ?? '';
-$maxAttempts = max(1, (int)($env['AUTH_MAX_ATTEMPTS'] ?? 5));
-$lockoutSeconds = max(60, (int)($env['AUTH_LOCKOUT_SECONDS'] ?? 900));
+$appLogin = isset($env['APP_LOGIN']) ? $env['APP_LOGIN'] : '';
+$appPassword = isset($env['APP_PASSWORD']) ? $env['APP_PASSWORD'] : '';
+$maxAttempts = max(1, (int)(isset($env['AUTH_MAX_ATTEMPTS']) ? $env['AUTH_MAX_ATTEMPTS'] : 5));
+$lockoutSeconds = max(60, (int)(isset($env['AUTH_LOCKOUT_SECONDS']) ? $env['AUTH_LOCKOUT_SECONDS'] : 900));
 
 if ($appLogin === '' || $appPassword === '') {
     json_out([
@@ -119,27 +141,42 @@ if ($appLogin === '' || $appPassword === '') {
 }
 
 $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-    || (($_SERVER['SERVER_PORT'] ?? null) == 443)
-    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    || ((isset($_SERVER['SERVER_PORT']) ? $_SERVER['SERVER_PORT'] : null) == 443)
+    || ((isset($_SERVER['HTTP_X_FORWARDED_PROTO']) ? $_SERVER['HTTP_X_FORWARDED_PROTO'] : '') === 'https');
 
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path' => '/',
-    'secure' => $secure,
-    'httponly' => true,
-    'samesite' => 'Lax',
-]);
+if (PHP_VERSION_ID >= 70300) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+} else {
+    session_set_cookie_params(0, '/; samesite=Lax', '', $secure, true);
+}
 session_start();
 
-$action = $_GET['action'] ?? $_POST['action'] ?? '';
+$action = '';
+if (isset($_GET['action'])) {
+    $action = $_GET['action'];
+} elseif (isset($_POST['action'])) {
+    $action = $_POST['action'];
+}
 if ($action === '' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = 'status';
 }
 
 $body = [];
-$contentType = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
-if (str_contains($contentType, 'application/json')) {
-    $raw = file_get_contents('php://input') ?: '';
+$contentType = '';
+if (isset($_SERVER['CONTENT_TYPE'])) {
+    $contentType = $_SERVER['CONTENT_TYPE'];
+} elseif (isset($_SERVER['HTTP_CONTENT_TYPE'])) {
+    $contentType = $_SERVER['HTTP_CONTENT_TYPE'];
+}
+if (auth_contains($contentType, 'application/json')) {
+    $raw = file_get_contents('php://input');
+    $raw = $raw ? $raw : '';
     $decoded = json_decode($raw, true);
     if (is_array($decoded)) {
         $body = $decoded;
@@ -154,7 +191,7 @@ if ($action === 'status') {
     json_out([
         'ok' => true,
         'authenticated' => $authed,
-        'login' => $authed ? ($_SESSION['login'] ?? null) : null,
+        'login' => $authed ? (isset($_SESSION['login']) ? $_SESSION['login'] : null) : null,
     ]);
 }
 
@@ -165,7 +202,8 @@ if ($action === 'logout') {
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'] ?? '', (bool)$p['secure'], (bool)$p['httponly']);
+        $domain = isset($p['domain']) ? $p['domain'] : '';
+        setcookie(session_name(), '', time() - 42000, $p['path'], $domain, !empty($p['secure']), !empty($p['httponly']));
     }
     session_destroy();
     json_out(['ok' => true, 'authenticated' => false]);
@@ -179,7 +217,9 @@ if ($action === 'login') {
     $ip = client_ip();
     $now = time();
     $attempts = read_attempts();
-    $record = $attempts[$ip] ?? ['count' => 0, 'first' => $now, 'locked_until' => 0];
+    $record = isset($attempts[$ip])
+        ? $attempts[$ip]
+        : ['count' => 0, 'first' => $now, 'locked_until' => 0];
 
     if (!empty($record['locked_until']) && $record['locked_until'] > $now) {
         $retry = $record['locked_until'] - $now;
@@ -192,13 +232,12 @@ if ($action === 'login') {
         ], 429);
     }
 
-    // сброс окна, если lockout прошёл
     if (!empty($record['locked_until']) && $record['locked_until'] <= $now) {
         $record = ['count' => 0, 'first' => $now, 'locked_until' => 0];
     }
 
-    $login = trim((string)($body['login'] ?? $_POST['login'] ?? ''));
-    $password = (string)($body['password'] ?? $_POST['password'] ?? '');
+    $login = trim((string)(isset($body['login']) ? $body['login'] : (isset($_POST['login']) ? $_POST['login'] : '')));
+    $password = (string)(isset($body['password']) ? $body['password'] : (isset($_POST['password']) ? $_POST['password'] : ''));
 
     $ok = hash_equals($appLogin, $login) && hash_equals($appPassword, $password);
 
@@ -243,3 +282,4 @@ if ($action === 'login') {
 }
 
 json_out(['ok' => false, 'error' => 'unknown_action', 'message' => 'Неизвестное действие.'], 400);
+
