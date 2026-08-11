@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { Plugin, Connect } from 'vite'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Plugin } from 'vite'
 
 type Attempt = { count: number; first: number; locked_until: number }
 
@@ -25,7 +26,7 @@ function loadEnvFile(filePath: string): Record<string, string> {
   return out
 }
 
-function readBody(req: Connect.IncomingMessage): Promise<string> {
+function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     req.on('data', (c) => chunks.push(Buffer.from(c)))
@@ -34,7 +35,7 @@ function readBody(req: Connect.IncomingMessage): Promise<string> {
   })
 }
 
-function json(res: Connect.ServerResponse, code: number, payload: unknown) {
+function json(res: ServerResponse, code: number, payload: unknown) {
   res.statusCode = code
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.setHeader('Cache-Control', 'no-store')
