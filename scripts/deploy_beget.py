@@ -59,19 +59,24 @@ def walk(path: str, depth: int = 0) -> None:
 walk(".")
 print("public_html candidates:", candidates)
 
-remote_root = candidates[0] if candidates else None
+preferred = [
+    f"{user}.beget.tech/public_html",
+    "e928145n.beget.tech/public_html",
+    "public_html",
+]
+remote_root = next((p for p in preferred if p in candidates), None)
 if not remote_root:
-    for guess in [
-        "e928145n.beget.tech/public_html",
-        "public_html",
-        f"{user}.beget.tech/public_html",
-    ]:
+    for guess in preferred:
         try:
             sftp.stat(guess)
             remote_root = guess
             break
         except Exception:
             pass
+if not remote_root and candidates:
+    # Prefer host-named folder over unrelated sites (e.g. piano/)
+    hostish = [c for c in candidates if "e928145n" in c or user in c]
+    remote_root = hostish[0] if hostish else candidates[0]
 
 if not remote_root:
     raise SystemExit("public_html not found")
