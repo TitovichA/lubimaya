@@ -20,6 +20,7 @@ import { searchAll, generateInsights, periodAverage, bestHabitStreaks, dayProgre
 import { areaMeta } from '../lib/areas'
 import { exportJson, importJsonFile } from '../lib/sync'
 import { themeScheduleLabel } from '../lib/theme'
+import { logoutRequest } from '../lib/auth'
 import type { HomeWidget, PageId } from '../types'
 import { Page, Card, Button, Input, Empty, SectionLabel } from '../components/ui'
 
@@ -236,7 +237,7 @@ const allWidgets: { id: HomeWidget; label: string }[] = [
   { id: 'ai', label: 'ИИ' },
 ]
 
-export function SettingsPage() {
+export function SettingsPage({ onLogout }: { onLogout?: () => void }) {
   const data = useAppStore((s) => s.data)
   const updateSettings = useAppStore((s) => s.updateSettings)
   const enableSync = useAppStore((s) => s.enableSync)
@@ -248,6 +249,7 @@ export function SettingsPage() {
   const [joinToken, setJoinToken] = useState('')
   const [syncToken, setSyncToken] = useState('')
   const [msg, setMsg] = useState('')
+  const [loggingOut, setLoggingOut] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const hidden = data.settings.hiddenWidgets
@@ -455,7 +457,7 @@ export function SettingsPage() {
       </Card>
 
       <SectionLabel>Установка как приложение</SectionLabel>
-      <Card className="p-5 text-sm leading-relaxed text-ink-muted" hover={false}>
+      <Card className="mb-6 p-5 text-sm leading-relaxed text-ink-muted" hover={false}>
         <p>
           На iPhone: Safari → Поделиться → «На экран Домой».
         </p>
@@ -463,6 +465,28 @@ export function SettingsPage() {
         <p className="mt-2">
           Виджеты iPhone: после установки PWA на экран Домой используйте ярлык «Моя 100-дневка».
         </p>
+      </Card>
+
+      <SectionLabel>Безопасность</SectionLabel>
+      <Card className="p-5" hover={false}>
+        <p className="mb-4 text-sm text-ink-muted">
+          Выйти из аккаунта на этом устройстве. Пароль хранится только в `.env` на сервере.
+        </p>
+        <Button
+          variant="danger"
+          disabled={loggingOut}
+          onClick={async () => {
+            setLoggingOut(true)
+            try {
+              await logoutRequest()
+            } finally {
+              onLogout?.()
+              setLoggingOut(false)
+            }
+          }}
+        >
+          {loggingOut ? 'Выход…' : 'Выйти'}
+        </Button>
       </Card>
     </Page>
   )

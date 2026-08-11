@@ -27,5 +27,10 @@ dist-ssr
 lubimaya-beget.zip
 .env
 .env.*
+!.env.example
+!server/.env.example
 scripts/.beget_pw
 scripts/.beget_pw*
+.auth_attempts.json
+**/.auth_attempts.json
+

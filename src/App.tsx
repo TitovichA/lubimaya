@@ -14,6 +14,7 @@ import { ThoughtsPage } from './pages/ThoughtsPage'
 import { AreaPage } from './pages/AreaPage'
 import { AiPage } from './pages/AiPage'
 import { LifePage } from './pages/LifePage'
+import { LoginPage } from './pages/LoginPage'
 import {
   MoreHubPage,
   SearchPage,
@@ -23,6 +24,7 @@ import {
 } from './pages/SettingsPage'
 import { getSyncMeta } from './lib/sync'
 import { pathToNav, replaceAppHistory, withHistorySync } from './lib/routing'
+import { fetchAuthStatus } from './lib/auth'
 
 const SPLASH_MIN_MS = 2200
 
@@ -34,14 +36,34 @@ export default function App() {
   const setPage = useAppStore((s) => s.setPage)
   const setSelectedDate = useAppStore((s) => s.setSelectedDate)
   const [splashDone, setSplashDone] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const status = await fetchAuthStatus()
+        if (!cancelled) setAuthenticated(!!status.authenticated)
+      } catch {
+        if (!cancelled) setAuthenticated(false)
+      } finally {
+        if (!cancelled) setAuthChecked(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!authenticated) return
     init()
-  }, [init])
+  }, [authenticated, init])
 
   // Синхронизация URL ↔ навигация (кнопка «Назад» в браузере)
   useEffect(() => {
-    if (!hydrated) return
+    if (!hydrated || !authenticated) return
 
     const applyFromUrl = () => {
       const snap = pathToNav(window.location.pathname, window.location.search)
@@ -56,7 +78,6 @@ export default function App() {
       })
     }
 
-    // Первый заход: если в URL уже путь — открыть его; иначе зафиксировать текущий экран
     const fromUrl = pathToNav(window.location.pathname, window.location.search)
     if (fromUrl.page !== 'home' || fromUrl.selectedId || window.location.pathname !== '/') {
       applyFromUrl()
@@ -87,9 +108,10 @@ export default function App() {
 
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [hydrated, setPage, setSelectedDate])
+  }, [hydrated, authenticated, setPage, setSelectedDate])
 
   useEffect(() => {
+    if (!authenticated) return
     const started = Date.now()
     let timer: number | undefined
 
@@ -102,17 +124,36 @@ export default function App() {
     return () => {
       if (timer) window.clearTimeout(timer)
     }
-  }, [hydrated])
+  }, [hydrated, authenticated])
 
   useEffect(() => {
-    if (!hydrated || !splashDone) return
+    if (!hydrated || !splashDone || !authenticated) return
     const meta = getSyncMeta()
     if (meta?.blobId) {
       syncNow()
       const id = window.setInterval(() => syncNow(), 60_000)
       return () => window.clearInterval(id)
     }
-  }, [hydrated, splashDone, syncNow])
+  }, [hydrated, splashDone, authenticated, syncNow])
+
+  if (!authChecked) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-cream text-ink-muted">
+        <p className="text-sm">Проверка входа…</p>
+      </div>
+    )
+  }
+
+  if (!authenticated) {
+    return (
+      <LoginPage
+        onSuccess={() => {
+          setAuthenticated(true)
+          setSplashDone(false)
+        }}
+      />
+    )
+  }
 
   const showSplash = !splashDone
 
@@ -151,7 +192,14 @@ export default function App() {
             {page === 'search' && <SearchPage />}
             {page === 'templates' && <TemplatesPage />}
             {page === 'reviews' && <ReviewsPage />}
-            {page === 'settings' && <SettingsPage />}
+            {page === 'settings' && (
+              <SettingsPage
+                onLogout={() => {
+                  setAuthenticated(false)
+                  setSplashDone(false)
+                }}
+              />
+            )}
           </Shell>
         </motion.div>
       )}
